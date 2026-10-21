@@ -1,9 +1,12 @@
 import asyncio
 import unittest
+from types import SimpleNamespace
+from typing import cast
 from unittest.mock import AsyncMock
 
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.methods import GetMe
+from aiogram.types import CallbackQuery, Message
 
 from src.bot.utils.telegram import (
     is_expired_callback_error,
@@ -33,37 +36,39 @@ class TelegramSafetyTests(unittest.TestCase):
         )
 
     def test_expired_callback_is_ignored(self) -> None:
-        callback = type("Callback", (), {})()
-        callback.data = "menu:help"
-        callback.answer = AsyncMock(
-            side_effect=telegram_bad_request("query is too old")
+        answer = AsyncMock(side_effect=telegram_bad_request("query is too old"))
+        callback = cast(
+            CallbackQuery,
+            SimpleNamespace(data="menu:help", answer=answer),
         )
 
         result = asyncio.run(safe_callback_answer(callback))
 
         self.assertFalse(result)
-        callback.answer.assert_awaited_once()
+        answer.assert_awaited_once()
 
     def test_unexpected_callback_error_is_re_raised(self) -> None:
-        callback = type("Callback", (), {})()
-        callback.data = "menu:help"
-        callback.answer = AsyncMock(
+        answer = AsyncMock(
             side_effect=telegram_bad_request("can't parse InlineKeyboardButton")
+        )
+        callback = cast(
+            CallbackQuery,
+            SimpleNamespace(data="menu:help", answer=answer),
         )
 
         with self.assertRaises(TelegramBadRequest):
             asyncio.run(safe_callback_answer(callback))
 
     def test_unmodified_edit_is_ignored(self) -> None:
-        message = type("Message", (), {})()
-        message.edit_text = AsyncMock(
+        edit_text = AsyncMock(
             side_effect=telegram_bad_request("message is not modified")
         )
+        message = cast(Message, SimpleNamespace(edit_text=edit_text))
 
         result = asyncio.run(safe_edit_text(message, "same"))
 
         self.assertFalse(result)
-        message.edit_text.assert_awaited_once_with("same", reply_markup=None)
+        edit_text.assert_awaited_once_with("same", reply_markup=None)
 
 
 if __name__ == "__main__":

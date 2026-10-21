@@ -11,7 +11,6 @@ from src.bot import bot
 from src.bot.filters import GroupOnly, TeacherOnly
 from src.bot.utils.telegram import (
     safe_callback_answer,
-    safe_edit_text,
     safe_edit_text_by_id,
 )
 from src.core.config import config
@@ -85,6 +84,12 @@ async def send_queue(message: Message, queue) -> None:
 async def queue_command(message: Message, command: CommandObject) -> None:
     argument = (command.args or "").strip().lower()
     active = await repository.get_active(message.chat.id)
+    if not argument:
+        if active is None:
+            await message.answer("Активной очереди нет.")
+            return
+        await send_queue(message, active)
+        return
     if argument == "close":
         if active is None:
             await message.answer("Активной очереди нет.")
@@ -107,6 +112,8 @@ async def queue_command(message: Message, command: CommandObject) -> None:
         await message.answer(
             f"Количество слотов должно быть от 1 до {config.QUEUE_MAX_SLOTS}."
         )
+        return
+    if message.from_user is None:
         return
     try:
         queue = await repository.create(message.chat.id, message.from_user.id, capacity)
@@ -149,7 +156,13 @@ async def book_slot(callback: CallbackQuery) -> None:
         return
     queue = await repository.get(int(queue_id))
     if queue is not None:
-        await safe_edit_text(callback.message, render_queue(queue), queue_markup(queue))
+        await safe_edit_text_by_id(
+            bot,
+            callback.message.chat.id,
+            callback.message.message_id,
+            render_queue(queue),
+            queue_markup(queue),
+        )
 
 
 @router.callback_query(F.data.startswith("queue:release:"), GroupOnly())
@@ -170,4 +183,10 @@ async def release_slot(callback: CallbackQuery) -> None:
         return
     queue = await repository.get(int(queue_id))
     if queue is not None:
-        await safe_edit_text(callback.message, render_queue(queue), queue_markup(queue))
+        await safe_edit_text_by_id(
+            bot,
+            callback.message.chat.id,
+            callback.message.message_id,
+            render_queue(queue),
+            queue_markup(queue),
+        )
