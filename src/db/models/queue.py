@@ -3,14 +3,11 @@ from tortoise import fields, models
 
 class Queue(models.Model):
     id = fields.BigIntField(pk=True)
-    chat_id = fields.BigIntField()
+    chat_id = fields.BigIntField(unique=True)
     message_id = fields.BigIntField(null=True)
     created_by = fields.BigIntField()
     capacity = fields.IntField()
-    status = fields.CharField(max_length=16, default="active")
-    active_key = fields.BigIntField(null=True, unique=True)
     created_at = fields.DatetimeField(auto_now_add=True)
-    closed_at = fields.DatetimeField(null=True)
 
     class Meta:
         table = "queues"

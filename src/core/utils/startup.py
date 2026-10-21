@@ -38,7 +38,10 @@ async def setup_bot() -> None:
     dp.include_router(handlers.router())
     dp.update.outer_middleware(TelegramResilienceMiddleware())
     await bot.set_my_commands(
-        [BotCommand(command="queue", description="Создать или показать очередь")],
+        [
+            BotCommand(command="q", description="Очередь: показать или создать"),
+            BotCommand(command="queue", description="То же, полная команда"),
+        ],
         scope=BotCommandScopeDefault(),
     )
     await bot.set_webhook(

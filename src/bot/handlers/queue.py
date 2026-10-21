@@ -30,11 +30,11 @@ router = Router(name="queue")
 repository = QueueRepository()
 
 
-def render_queue(queue) -> str:
+def render_queue(queue, *, closed: bool = False) -> str:
     slots = sorted(queue.slots, key=lambda slot: slot.position)
     occupied_slots = [slot for slot in slots if slot.user_id is not None]
     occupied = len(occupied_slots)
-    state = "активна" if queue.status == "active" else "закрыта"
+    state = "закрыта" if closed else "активна"
     lines = [f"<b>Очередь</b> · {state}", f"Занято: {occupied}/{queue.capacity}", ""]
     if not occupied_slots:
         lines.append("Пока никто не записался.")
@@ -46,8 +46,8 @@ def render_queue(queue) -> str:
     return "\n".join(lines)
 
 
-def queue_markup(queue) -> InlineKeyboardMarkup:
-    if queue.status != "active":
+def queue_markup(queue, *, closed: bool = False) -> InlineKeyboardMarkup:
+    if closed:
         return InlineKeyboardMarkup(inline_keyboard=[])
 
     free_positions = [
@@ -105,7 +105,7 @@ async def send_queue(message: Message, queue) -> None:
         )
 
 
-@router.message(Command("queue"), GroupOnly(), TeacherOnly(config.TEACHER_ID))
+@router.message(Command("queue", "q"), GroupOnly(), TeacherOnly(config.TEACHER_ID))
 async def queue_command(message: Message, command: CommandObject) -> None:
     argument = (command.args or "").strip().lower()
     active = await repository.get_active(message.chat.id)
@@ -119,17 +119,24 @@ async def queue_command(message: Message, command: CommandObject) -> None:
         if active is None:
             await message.answer("Активной очереди нет.")
             return
-        await repository.close(active.id)
-        closed = await repository.get(active.id)
-        if closed is not None and closed.message_id is not None:
+        closed = await repository.close(active.id)
+        if closed.message_id is not None:
             await safe_edit_text_by_id(
-                bot, closed.chat_id, closed.message_id, render_queue(closed)
+                bot,
+                closed.chat_id,
+                closed.message_id,
+                render_queue(closed, closed=True),
+                queue_markup(closed, closed=True),
             )
         await message.answer("Очередь закрыта.")
         return
     if not argument.isdigit():
         await message.answer(
-            f"Использование: /queue N (1–{config.QUEUE_MAX_SLOTS}) или /queue close."
+            f"Использование:\n"
+            f"/q N — создать очередь на N мест (1–{config.QUEUE_MAX_SLOTS})\n"
+            "/q — показать очередь\n"
+            "/q close — закрыть очередь\n\n"
+            "Также поддерживается полная команда /queue."
         )
         return
     capacity = int(argument)
@@ -148,7 +155,7 @@ async def queue_command(message: Message, command: CommandObject) -> None:
     await send_queue(message, queue)
 
 
-@router.message(Command("queue"), GroupOnly())
+@router.message(Command("queue", "q"), GroupOnly())
 async def queue_show(message: Message) -> None:
     queue = await repository.get_active(message.chat.id)
     if queue is None:
@@ -252,12 +259,10 @@ async def close_queue_callback(callback: CallbackQuery) -> None:
         await safe_callback_answer(callback, "Очередь не найдена.", show_alert=True)
         return
     await safe_callback_answer(callback, "Очередь закрыта.")
-    queue = await repository.get(queue.id)
-    if queue is not None:
-        await safe_edit_text_by_id(
-            bot,
-            callback.message.chat.id,
-            callback.message.message_id,
-            render_queue(queue),
-            queue_markup(queue),
-        )
+    await safe_edit_text_by_id(
+        bot,
+        callback.message.chat.id,
+        callback.message.message_id,
+        render_queue(queue, closed=True),
+        queue_markup(queue, closed=True),
+    )

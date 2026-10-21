@@ -38,7 +38,6 @@ class QueueRepository:
                     chat_id=chat_id,
                     created_by=teacher_id,
                     capacity=capacity,
-                    active_key=chat_id,
                     using_db=connection,
                 )
                 await QueueSlot.bulk_create(
@@ -53,24 +52,16 @@ class QueueRepository:
         return queue
 
     async def get_active(self, chat_id: int) -> Queue | None:
-        return (
-            await Queue.filter(chat_id=chat_id, status="active")
-            .prefetch_related("slots")
-            .first()
-        )
+        return await Queue.filter(chat_id=chat_id).prefetch_related("slots").first()
 
     async def get(self, queue_id: int) -> Queue | None:
         return await Queue.filter(id=queue_id).prefetch_related("slots").first()
 
     async def close(self, queue_id: int) -> Queue:
-        queue = await Queue.get_or_none(id=queue_id)
+        queue = await Queue.filter(id=queue_id).prefetch_related("slots").first()
         if queue is None:
             raise QueueError
-        if queue.status == "active":
-            queue.status = "closed"
-            queue.active_key = None
-            queue.closed_at = datetime.now(UTC)
-            await queue.save(update_fields=("status", "active_key", "closed_at"))
+        await queue.delete()
         return queue
 
     async def reserve(
@@ -83,7 +74,7 @@ class QueueRepository:
     ) -> QueueSlot:
         async with in_transaction() as connection:
             queue = await Queue.filter(id=queue_id).using_db(connection).first()
-            if queue is None or queue.status != "active":
+            if queue is None:
                 raise QueueClosedError
             existing = (
                 await QueueSlot.filter(queue_id=queue_id, user_id=user_id)
@@ -110,7 +101,7 @@ class QueueRepository:
     async def release(self, queue_id: int, user_id: int) -> QueueSlot:
         async with in_transaction() as connection:
             queue = await Queue.filter(id=queue_id).using_db(connection).first()
-            if queue is None or queue.status != "active":
+            if queue is None:
                 raise QueueClosedError
             slot = (
                 await QueueSlot.filter(queue_id=queue_id, user_id=user_id)

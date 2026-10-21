@@ -29,7 +29,7 @@ class QueueRenderingTests(unittest.TestCase):
             slots=[SimpleNamespace(position=1, user_id=None, user_name=None)],
         )
 
-        self.assertIn("закрыта", render_queue(queue))
+        self.assertIn("закрыта", render_queue(queue, closed=True))
 
     def test_markup_uses_compact_numeric_grid(self) -> None:
         queue = SimpleNamespace(
