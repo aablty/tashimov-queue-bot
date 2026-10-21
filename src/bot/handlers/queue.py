@@ -4,6 +4,7 @@ from aiogram import F, Router
 from aiogram.filters import Command, CommandObject
 from aiogram.types import (
     CallbackQuery,
+    DisabledButton,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     Message,
@@ -11,6 +12,7 @@ from aiogram.types import (
 
 from src.bot import bot
 from src.bot.filters import GroupOnly, TeacherOnly
+from src.bot.utils.emoji import PremiumEmoji
 from src.bot.utils.telegram import (
     safe_callback_answer,
     safe_edit_text_by_id,
@@ -28,6 +30,12 @@ from src.db.queue import (
 
 router = Router(name="queue")
 repository = QueueRepository()
+
+FREE_SLOT_EMOJI_ID = PremiumEmoji.PLAY_CIRCLE.value
+OCCUPIED_SLOT_EMOJI_ID = PremiumEmoji.CHECKMARK.value
+RELEASE_EMOJI_ID = PremiumEmoji.UNLOCK.value
+REFRESH_EMOJI_ID = PremiumEmoji.REFRESH.value
+CLOSE_EMOJI_ID = PremiumEmoji.CROSSMARK.value
 
 
 def render_queue(queue, *, closed: bool = False) -> str:
@@ -50,29 +58,38 @@ def queue_markup(queue, *, closed: bool = False) -> InlineKeyboardMarkup:
     if closed:
         return InlineKeyboardMarkup(inline_keyboard=[])
 
-    free_positions = [
-        slot.position
-        for slot in sorted(queue.slots, key=lambda item: item.position)
-        if slot.user_id is None
-    ]
+    slots = sorted(queue.slots, key=lambda item: item.position)
     rows = [
         [
             InlineKeyboardButton(
-                text=str(position),
-                callback_data=f"queue:book:{queue.id}:{position}",
+                text=str(slot.position),
+                icon_custom_emoji_id=(
+                    FREE_SLOT_EMOJI_ID
+                    if slot.user_id is None
+                    else OCCUPIED_SLOT_EMOJI_ID
+                ),
+                style="success" if slot.user_id is None else "primary",
+                callback_data=(
+                    f"queue:book:{queue.id}:{slot.position}"
+                    if slot.user_id is None
+                    else None
+                ),
+                disabled=DisabledButton() if slot.user_id is not None else None,
             )
-            for position in free_positions[index : index + 5]
+            for slot in slots[index : index + 5]
         ]
-        for index in range(0, len(free_positions), 5)
+        for index in range(0, len(slots), 5)
     ]
     rows.append(
         [
             InlineKeyboardButton(
                 text="Освободить моё место",
+                icon_custom_emoji_id=RELEASE_EMOJI_ID,
                 callback_data=f"queue:release:{queue.id}",
             ),
             InlineKeyboardButton(
                 text="Обновить",
+                icon_custom_emoji_id=REFRESH_EMOJI_ID,
                 callback_data=f"queue:refresh:{queue.id}",
             ),
         ]
@@ -81,6 +98,7 @@ def queue_markup(queue, *, closed: bool = False) -> InlineKeyboardMarkup:
         [
             InlineKeyboardButton(
                 text="Закрыть очередь",
+                icon_custom_emoji_id=CLOSE_EMOJI_ID,
                 callback_data=f"queue:close:{queue.id}",
             )
         ]

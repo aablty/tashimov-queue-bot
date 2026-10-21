@@ -49,7 +49,10 @@ class QueueRepository:
                 )
         except IntegrityError as exc:
             raise QueueAlreadyExistsError from exc
-        return queue
+        created = await self.get_active(chat_id)
+        if created is None:
+            raise QueueError
+        return created
 
     async def get_active(self, chat_id: int) -> Queue | None:
         return await Queue.filter(chat_id=chat_id).prefetch_related("slots").first()

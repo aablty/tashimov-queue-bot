@@ -47,6 +47,26 @@ class QueueRenderingTests(unittest.TestCase):
         self.assertEqual(markup.inline_keyboard[0][0].text, "1")
         self.assertEqual(markup.inline_keyboard[1][-1].text, "10")
 
+    def test_markup_keeps_occupied_numbers_and_marks_them(self) -> None:
+        queue = SimpleNamespace(
+            id=7,
+            status="active",
+            slots=[
+                SimpleNamespace(position=1, user_id=42),
+                SimpleNamespace(position=2, user_id=None),
+            ],
+        )
+
+        markup = queue_markup(queue)
+
+        occupied, free = markup.inline_keyboard[0]
+        self.assertEqual(occupied.text, "1")
+        self.assertEqual(occupied.style, "primary")
+        self.assertIsNotNone(occupied.disabled)
+        self.assertEqual(free.text, "2")
+        self.assertEqual(free.style, "success")
+        self.assertIsNone(free.disabled)
+
 
 if __name__ == "__main__":
     unittest.main()

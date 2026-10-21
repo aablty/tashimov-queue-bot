@@ -1,0 +1,74 @@
+from enum import Enum
+from typing import cast
+
+
+class PremiumEmoji(str, Enum):
+    HOME = "5350804286106281769"
+    USER_ACCEPT = "5348405327828131438"
+    USER_LIKE = "5350617785741394557"
+    USERS = "5348569928154788388"
+    ID_CARD = "5350431792182636298"
+    STOP = "5348487924344204089"
+    PLAY = "5348432678179872580"
+    NOTIFY = "5364315767888191354"
+    STOP_CIRCLE = "5348180932966786768"
+    PLAY_CIRCLE = "5348118338113416844"
+    NOTIFY_CIRCLE = "5363938936047575248"
+    BACK = "5348325179443423313"
+    REFRESH = "5348080435027029259"
+    INFO = "5348222181832700627"
+    WARNING = "5350484611690440059"
+    CHECKMARK = "5350492926747125960"
+    CROSSMARK = "5348316142832233249"
+    CLOCK = "5350633230443786631"
+    CREDIT_CARD = "5348132833628039829"
+    CALENDAR = "5348515553868821016"
+    NOTE = "5350334567007955270"
+    BEST_CHOICE = "5357525579212039481"
+    COPY = "5348106466823808982"
+    SHARE = "5350627333453690414"
+    CLOUD_DOWNLOAD = "5350460302175546670"
+    CHART = "5357190120791386636"
+    GIFT = "5359732986243755413"
+    LOCK = "5357125687692013309"
+    UNLOCK = "5359432265518591911"
+
+    @property
+    def html(self) -> str:
+        emoji_id = cast(str, self.value)
+        return (
+            f'<tg-emoji emoji-id="{emoji_id}">{EMOJI_FALLBACKS[self.name]}</tg-emoji>'
+        )
+
+
+EMOJI_FALLBACKS = {
+    "HOME": "🏠",
+    "USER_ACCEPT": "✅",
+    "USER_LIKE": "🩷",
+    "USERS": "👥",
+    "ID_CARD": "👤",
+    "STOP": "⏹️",
+    "PLAY": "▶️",
+    "NOTIFY": "🔔",
+    "STOP_CIRCLE": "⏹️",
+    "PLAY_CIRCLE": "▶️",
+    "NOTIFY_CIRCLE": "🔔",
+    "BACK": "🔙",
+    "REFRESH": "🔃",
+    "INFO": "ℹ️",
+    "WARNING": "⚠️",
+    "CHECKMARK": "✅",
+    "CROSSMARK": "❎",
+    "CLOCK": "⌛️",
+    "CREDIT_CARD": "💳",
+    "CALENDAR": "🗓️",
+    "NOTE": "📋",
+    "BEST_CHOICE": "🫶",
+    "COPY": "📋",
+    "SHARE": "↗️",
+    "CLOUD_DOWNLOAD": "🔃",
+    "CHART": "📊",
+    "GIFT": "🎁",
+    "LOCK": "🔒",
+    "UNLOCK": "🔓",
+}
