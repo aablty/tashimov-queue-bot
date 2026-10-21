@@ -31,12 +31,6 @@ from src.db.queue import (
 router = Router(name="queue")
 repository = QueueRepository()
 
-FREE_SLOT_EMOJI_ID = PremiumEmoji.PLAY_CIRCLE.value
-OCCUPIED_SLOT_EMOJI_ID = PremiumEmoji.CHECKMARK.value
-RELEASE_EMOJI_ID = PremiumEmoji.UNLOCK.value
-REFRESH_EMOJI_ID = PremiumEmoji.REFRESH.value
-CLOSE_EMOJI_ID = PremiumEmoji.CROSSMARK.value
-
 
 def render_queue(queue, *, closed: bool = False) -> str:
     slots = sorted(queue.slots, key=lambda slot: slot.position)
@@ -63,11 +57,6 @@ def queue_markup(queue, *, closed: bool = False) -> InlineKeyboardMarkup:
         [
             InlineKeyboardButton(
                 text=str(slot.position),
-                icon_custom_emoji_id=(
-                    FREE_SLOT_EMOJI_ID
-                    if slot.user_id is None
-                    else OCCUPIED_SLOT_EMOJI_ID
-                ),
                 style="success" if slot.user_id is None else "primary",
                 callback_data=(
                     f"queue:book:{queue.id}:{slot.position}"
@@ -83,13 +72,13 @@ def queue_markup(queue, *, closed: bool = False) -> InlineKeyboardMarkup:
     rows.append(
         [
             InlineKeyboardButton(
-                text="Освободить моё место",
-                icon_custom_emoji_id=RELEASE_EMOJI_ID,
+                text="Освободить слот",
+                icon_custom_emoji_id=PremiumEmoji.RELEASE_SLOT.value,
                 callback_data=f"queue:release:{queue.id}",
             ),
             InlineKeyboardButton(
                 text="Обновить",
-                icon_custom_emoji_id=REFRESH_EMOJI_ID,
+                icon_custom_emoji_id=PremiumEmoji.REFRESH_QUEUE.value,
                 callback_data=f"queue:refresh:{queue.id}",
             ),
         ]
@@ -98,7 +87,7 @@ def queue_markup(queue, *, closed: bool = False) -> InlineKeyboardMarkup:
         [
             InlineKeyboardButton(
                 text="Закрыть очередь",
-                icon_custom_emoji_id=CLOSE_EMOJI_ID,
+                icon_custom_emoji_id=PremiumEmoji.CLOSE_QUEUE.value,
                 callback_data=f"queue:close:{queue.id}",
             )
         ]
