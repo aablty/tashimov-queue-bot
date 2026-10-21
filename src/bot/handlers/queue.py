@@ -1,3 +1,5 @@
+from html import escape
+
 from aiogram import F, Router
 from aiogram.filters import Command, CommandObject
 from aiogram.types import (
@@ -19,6 +21,7 @@ from src.db.queue import (
     NotReservedError,
     QueueAlreadyExistsError,
     QueueClosedError,
+    QueueError,
     QueueRepository,
     SlotUnavailableError,
 )
@@ -29,34 +32,56 @@ repository = QueueRepository()
 
 def render_queue(queue) -> str:
     slots = sorted(queue.slots, key=lambda slot: slot.position)
-    occupied = sum(slot.user_id is not None for slot in slots)
+    occupied_slots = [slot for slot in slots if slot.user_id is not None]
+    occupied = len(occupied_slots)
     state = "активна" if queue.status == "active" else "закрыта"
-    lines = [f"<b>Очередь</b> · {state} · занято {occupied}/{queue.capacity}", ""]
-    for slot in slots:
-        label = (
-            "свободно"
-            if slot.user_id is None
-            else (slot.user_name or str(slot.user_id))
-        )
-        lines.append(f"{slot.position}. {label}")
+    lines = [f"<b>Очередь</b> · {state}", f"Занято: {occupied}/{queue.capacity}", ""]
+    if not occupied_slots:
+        lines.append("Пока никто не записался.")
+    else:
+        for index, slot in enumerate(occupied_slots, start=1):
+            name = escape(slot.user_name or str(slot.user_id))
+            user_link = f'<a href="tg://user?id={slot.user_id}">{name}</a>'
+            lines.append(f"{index}. {user_link}")
     return "\n".join(lines)
 
 
 def queue_markup(queue) -> InlineKeyboardMarkup:
+    if queue.status != "active":
+        return InlineKeyboardMarkup(inline_keyboard=[])
+
+    free_positions = [
+        slot.position
+        for slot in sorted(queue.slots, key=lambda item: item.position)
+        if slot.user_id is None
+    ]
     rows = [
         [
             InlineKeyboardButton(
-                text=f"Занять {slot.position}",
-                callback_data=f"queue:book:{queue.id}:{slot.position}",
+                text=str(position),
+                callback_data=f"queue:book:{queue.id}:{position}",
             )
+            for position in free_positions[index : index + 5]
         ]
-        for slot in sorted(queue.slots, key=lambda item: item.position)
-        if slot.user_id is None
+        for index in range(0, len(free_positions), 5)
     ]
     rows.append(
         [
             InlineKeyboardButton(
-                text="Освободить мой слот", callback_data=f"queue:release:{queue.id}"
+                text="Освободить моё место",
+                callback_data=f"queue:release:{queue.id}",
+            ),
+            InlineKeyboardButton(
+                text="Обновить",
+                callback_data=f"queue:refresh:{queue.id}",
+            ),
+        ]
+    )
+    rows.append(
+        [
+            InlineKeyboardButton(
+                text="Закрыть очередь",
+                callback_data=f"queue:close:{queue.id}",
             )
         ]
     )
@@ -182,6 +207,52 @@ async def release_slot(callback: CallbackQuery) -> None:
         await safe_callback_answer(callback, "Очередь закрыта.", show_alert=True)
         return
     queue = await repository.get(int(queue_id))
+    if queue is not None:
+        await safe_edit_text_by_id(
+            bot,
+            callback.message.chat.id,
+            callback.message.message_id,
+            render_queue(queue),
+            queue_markup(queue),
+        )
+
+
+@router.callback_query(F.data.startswith("queue:refresh:"), GroupOnly())
+async def refresh_queue(callback: CallbackQuery) -> None:
+    if callback.message is None or callback.data is None:
+        return
+    _, _, queue_id = callback.data.split(":")
+    queue = await repository.get(int(queue_id))
+    if queue is None:
+        await safe_callback_answer(callback, "Очередь не найдена.", show_alert=True)
+        return
+    await safe_callback_answer(callback)
+    await safe_edit_text_by_id(
+        bot,
+        callback.message.chat.id,
+        callback.message.message_id,
+        render_queue(queue),
+        queue_markup(queue),
+    )
+
+
+@router.callback_query(F.data.startswith("queue:close:"), GroupOnly())
+async def close_queue_callback(callback: CallbackQuery) -> None:
+    if callback.message is None or callback.data is None:
+        return
+    if callback.from_user is None or callback.from_user.id != config.TEACHER_ID:
+        await safe_callback_answer(
+            callback, "Закрыть очередь может только преподаватель.", show_alert=True
+        )
+        return
+    _, _, queue_id = callback.data.split(":")
+    try:
+        queue = await repository.close(int(queue_id))
+    except (QueueError, ValueError):
+        await safe_callback_answer(callback, "Очередь не найдена.", show_alert=True)
+        return
+    await safe_callback_answer(callback, "Очередь закрыта.")
+    queue = await repository.get(queue.id)
     if queue is not None:
         await safe_edit_text_by_id(
             bot,
