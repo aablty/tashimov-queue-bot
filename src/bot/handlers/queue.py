@@ -119,7 +119,7 @@ def setup_markup(payload: dict[str, Any], step: str) -> InlineKeyboardMarkup:
                     [
                         button(
                             f"{item['name'][:20]} · {time_text(item['start_minute'], item['end_minute'])}",
-                            f"qsetup:edit:{item['id']}",
+                            f"qsetup:edit:{item['schedule_id']}",
                         )
                     ]
                     for item in payload.get("schedules", [])
