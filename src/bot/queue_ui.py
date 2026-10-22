@@ -170,10 +170,11 @@ def setup_markup(
                 ),
                 cancel_setup_button(),
             ],
-            2,
-            2,
             1,
-            2,
+            3,
+            1,
+            1,
+            2
         )
     if step == "kind":
         return markup(
