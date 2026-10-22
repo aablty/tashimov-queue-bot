@@ -195,7 +195,13 @@ class QueueRepository:
             await self.sync_schedule(schedule_id)
 
     async def cleanup_expired(self) -> None:
-        await Queue.filter(ends_at__lte=now_utc(), schedule__kind="once").delete()
+        once_schedule_ids = cast(
+            list[int], await QueueSchedule.filter(kind="once").values_list("id", flat=True)
+        )
+        if once_schedule_ids:
+            await Queue.filter(
+                ends_at__lte=now_utc(), schedule_id__in=once_schedule_ids
+            ).delete()
 
     async def sync_schedule(self, schedule_id: int) -> None:
         schedule = await self.get_schedule(schedule_id)
