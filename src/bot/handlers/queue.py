@@ -93,7 +93,7 @@ def setup_text(payload: dict, step: str) -> str:
 def setup_markup(payload: dict, step: str) -> InlineKeyboardMarkup:
     rows: list[list[InlineKeyboardButton]] = []
     if step == "main":
-        rows = [[b("＋ Новая очередь", "qsetup:new")]]
+        rows = [[b("Новая очередь", "qsetup:new", icon=PremiumEmoji.ADD_QUEUE.value)]]
         rows.extend(
             [
                 [
@@ -126,7 +126,15 @@ def setup_markup(payload: dict, step: str) -> InlineKeyboardMarkup:
         selected = set(payload.get("weekdays") or [])
         rows = [
             [
-                b(("✓ " if i in selected else "") + label, f"qsetup:day:{i}")
+                b(
+                    label,
+                    f"qsetup:day:{i}",
+                    icon=(
+                        PremiumEmoji.SELECTED_DAY.value
+                        if i in selected
+                        else ""
+                    ),
+                )
                 for i, label in enumerate(labels)
             ],
             [
@@ -135,15 +143,21 @@ def setup_markup(payload: dict, step: str) -> InlineKeyboardMarkup:
             ],
         ]
     elif step == "intervals":
-        rows = [[b("＋ Добавить интервал", "qsetup:add")]]
+        rows = [[b("Добавить интервал", "qsetup:add", icon=PremiumEmoji.ADD_INTERVAL.value)]]
         rows.extend(
             [
-                [b(f"✕ Удалить интервал {index + 1}", f"qsetup:remove:{index}")]
+                [
+                    b(
+                        f"Удалить интервал {index + 1}",
+                        f"qsetup:remove:{index}",
+                        icon=PremiumEmoji.REMOVE_INTERVAL.value,
+                    )
+                ]
                 for index, _ in enumerate(payload.get("intervals") or [])
             ]
         )
         if payload.get("intervals"):
-            rows.append([b("✓ Сохранить", "qsetup:save", "success")])
+            rows.append([b("Сохранить", "qsetup:save", "success", PremiumEmoji.SAVE.value)])
         rows.append([b("Назад", "qsetup:back:kind")])
     elif step == "start":
         rows = [
@@ -458,7 +472,7 @@ def queue_markup(queue: Any) -> InlineKeyboardMarkup:
                 icon=PremiumEmoji.REFRESH_QUEUE.value,
             ),
         ],
-        [b("← К списку", "qs:list")],
+            [b("К списку", "qs:list", icon=PremiumEmoji.BACK.value)],
     ]
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
