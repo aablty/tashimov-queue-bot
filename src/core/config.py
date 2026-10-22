@@ -17,7 +17,7 @@ class Config(BaseSettings):
     QUEUE_MAX_SLOTS: int = 100
     QUEUE_DEFAULT_SLOTS: int = 25
     QUEUE_TIMEZONE: str = "Asia/Qyzylorda"
-    QUEUE_GRACE_MINUTES: int = 20
+    QUEUE_GRACE_MINUTES: int = 30
 
     @property
     def teacher_ids(self) -> frozenset[int]:
