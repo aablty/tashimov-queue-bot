@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Literal, cast
 
 from aiogram import F, Router
@@ -15,7 +15,11 @@ from src.bot.schemas.queue import (
     QueueSchedulePayload,
     ScheduleSummary,
 )
-from src.bot.utils.queue import local_zone
+from src.bot.utils.queue import (
+    default_time_range,
+    local_zone,
+    minimum_start_minute,
+)
 from src.bot.utils.telegram import (
     safe_callback_answer,
     safe_delete,
@@ -68,10 +72,18 @@ def schedule_summary(schedule: QueueSchedule) -> ScheduleSummary:
 
 
 def ensure_time_defaults(schedule: QueueSchedulePayload) -> None:
-    if schedule.start_minute is None:
-        schedule.start_minute = 9 * 60
+    target_date = schedule.once_date or (
+        datetime.now(local_zone()).date() + timedelta(days=1)
+    )
+    default_start, default_end = default_time_range(target_date)
+    if (
+        schedule.start_minute is None
+        or schedule.start_minute < minimum_start_minute(target_date)
+    ):
+        schedule.start_minute = default_start
     if schedule.end_minute is None or schedule.end_minute <= schedule.start_minute:
-        schedule.end_minute = min(schedule.start_minute + 60, 24 * 60)
+        schedule.end_minute = default_end
+    schedule.end_minute = min(schedule.end_minute, 23 * 60 + 59)
 
 
 async def edit_setup(draft: Any) -> None:
@@ -265,12 +277,30 @@ async def setup_callback(callback: CallbackQuery) -> None:
         )
     elif action == "date":
         today = datetime.now(local_zone()).date()
-        schedule.once_date = today.fromordinal(today.toordinal() + int(parts[2]))
-        ensure_time_defaults(schedule)
-        next_step = "edit" if schedule.schedule_id is not None else "time"
-        await repository.save_draft(
-            draft, step=next_step, payload=payload.model_dump(mode="json")
-        )
+        current = schedule.once_date or today
+        direction = parts[2]
+        if direction == "done":
+            schedule.once_date = current
+            ensure_time_defaults(schedule)
+            next_step = "edit" if schedule.schedule_id is not None else "time"
+            await repository.save_draft(
+                draft, step=next_step, payload=payload.model_dump(mode="json")
+            )
+        elif direction in {"prev", "next"}:
+            offset = -1 if direction == "prev" else 1
+            candidate = current.fromordinal(current.toordinal() + offset)
+            if candidate < today:
+                await safe_callback_answer(
+                    callback, "Нельзя выбрать прошедшую дату."
+                )
+                return
+            schedule.once_date = candidate
+            await repository.save_draft(
+                draft, step="date", payload=payload.model_dump(mode="json")
+            )
+        else:
+            await safe_callback_answer(callback, "Неизвестное действие с датой.")
+            return
     elif action == "day":
         schedule.weekday = int(parts[2])
         ensure_time_defaults(schedule)
@@ -306,12 +336,24 @@ async def setup_callback(callback: CallbackQuery) -> None:
             side, direction = parts[2], parts[3]
             if side == "start":
                 candidate = start_minute + (60 if direction == "up" else -60)
-                valid = 0 <= candidate < end_minute - 60
+                minimum_start = (
+                    minimum_start_minute(schedule.once_date)
+                    if schedule.once_date is not None
+                    else 0
+                )
+                valid = (
+                    minimum_start <= candidate <= end_minute - 60
+                    and candidate + 60 <= end_minute
+                )
                 if valid:
                     schedule.start_minute = candidate
             elif side == "end":
-                candidate = end_minute + (60 if direction == "up" else -60)
-                valid = start_minute + 60 < candidate <= 24 * 60
+                candidate = (
+                    23 * 60 + 59
+                    if direction == "up" and end_minute >= 23 * 60
+                    else end_minute + (60 if direction == "up" else -60)
+                )
+                valid = start_minute + 60 <= candidate <= 23 * 60 + 59
                 if valid:
                     schedule.end_minute = candidate
             else:

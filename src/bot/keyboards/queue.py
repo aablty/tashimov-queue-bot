@@ -11,6 +11,7 @@ from src.bot.utils.emoji import PremiumEmoji
 from src.bot.utils.queue import (
     WEEKDAYS,
     local_zone,
+    minimum_start_minute,
     queue_sort_key,
     summary_period,
     summary_sort_key,
@@ -147,13 +148,18 @@ def setup_markup(
         now = datetime.now(local_zone()).date()
         return markup(
             [
-                *[
-                    InlineKeyboardButton(
-                        text=now.fromordinal(now.toordinal() + index).strftime("%d.%m"),
-                        callback_data=f"qsetup:date:{index}",
-                    )
-                    for index in range(7)
-                ],
+                InlineKeyboardButton(
+                    text="‹",
+                    callback_data="qsetup:date:prev",
+                    disabled=DisabledButton()
+                    if schedule.once_date is None or schedule.once_date <= now
+                    else None,
+                ),
+                InlineKeyboardButton(
+                    text=(schedule.once_date or now).strftime("%d.%m.%Y"),
+                    disabled=DisabledButton(),
+                ),
+                InlineKeyboardButton(text="›", callback_data="qsetup:date:next"),
                 InlineKeyboardButton(
                     text="Назад",
                     callback_data="qsetup:editmenu"
@@ -161,12 +167,16 @@ def setup_markup(
                     else "qsetup:back:name",
                     icon_custom_emoji_id=PremiumEmoji.ARROW_LEFT.value,
                 ),
+                InlineKeyboardButton(
+                    text="Готово",
+                    callback_data="qsetup:date:done",
+                    icon_custom_emoji_id=PremiumEmoji.CHECKMARK.value,
+                ),
                 cancel_setup_button(),
             ],
             3,
-            3,
-            1,
             2,
+            1
         )
     if step == "day":
         return markup(
@@ -214,19 +224,24 @@ def setup_markup(
     if step == "time":
         start = schedule.start_minute if schedule.start_minute is not None else 9 * 60
         end = schedule.end_minute if schedule.end_minute is not None else start + 60
+        minimum_start = (
+            minimum_start_minute(schedule.once_date)
+            if schedule.once_date is not None
+            else 0
+        )
         return markup(
             [
                 InlineKeyboardButton(
                     text="↑",
                     callback_data="qsetup:time:start:up",
                     disabled=DisabledButton()
-                    if start + 60 >= end or start >= 23 * 60
+                    if start + 120 > end or start >= 23 * 60
                     else None,
                 ),
                 InlineKeyboardButton(
                     text="↑",
                     callback_data="qsetup:time:end:up",
-                    disabled=DisabledButton() if end >= 24 * 60 else None,
+                    disabled=DisabledButton() if end >= 23 * 60 + 59 else None,
                 ),
                 InlineKeyboardButton(
                     text=f"{start // 60:02d}:{start % 60:02d}",
@@ -239,17 +254,12 @@ def setup_markup(
                 InlineKeyboardButton(
                     text="↓",
                     callback_data="qsetup:time:start:down",
-                    disabled=DisabledButton() if start <= 0 else None,
+                    disabled=DisabledButton() if start <= minimum_start else None,
                 ),
                 InlineKeyboardButton(
                     text="↓",
                     callback_data="qsetup:time:end:down",
-                    disabled=DisabledButton() if end - 60 <= start else None,
-                ),
-                InlineKeyboardButton(
-                    text="Готово",
-                    callback_data="qsetup:time:done",
-                    icon_custom_emoji_id=PremiumEmoji.CHECKMARK.value,
+                    disabled=DisabledButton() if end - 120 < start else None,
                 ),
                 InlineKeyboardButton(
                     text="Назад",
@@ -258,12 +268,18 @@ def setup_markup(
                     else "qsetup:back:period",
                     icon_custom_emoji_id=PremiumEmoji.ARROW_LEFT.value,
                 ),
+                InlineKeyboardButton(
+                    text="Готово",
+                    callback_data="qsetup:time:done",
+                    icon_custom_emoji_id=PremiumEmoji.CHECKMARK.value,
+                ),
                 cancel_setup_button(),
             ],
             2,
             2,
             2,
-            3,
+            2,
+            1
         )
     if step == "end":
         first = (schedule.start_minute or 0) // 60 + 1

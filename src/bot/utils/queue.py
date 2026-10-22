@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import date, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -18,7 +19,21 @@ def local_zone() -> ZoneInfo:
 def time_text(start: int | None, end: int | None) -> str:
     if start is None or end is None:
         return "не выбрано"
+    end = min(end, 23 * 60 + 59)
     return f"{start // 60:02d}:{start % 60:02d}–{end // 60:02d}:{end % 60:02d}"
+
+
+def minimum_start_minute(target_date: date) -> int:
+    now = datetime.now(local_zone())
+    if target_date != now.date():
+        return 0
+    return (now.hour + 1) * 60
+
+
+def default_time_range(target_date: date) -> tuple[int, int]:
+    start = max(9 * 60, minimum_start_minute(target_date))
+    start = min(start, 23 * 60)
+    return start, min(start + 60, 23 * 60 + 59)
 
 
 def weekday_text(value: int | None) -> str:
