@@ -9,24 +9,22 @@ from aiogram.types import CallbackQuery, Message
 
 from src.bot import bot
 from src.bot.filters import GroupOnly, TeacherOnly
-from src.bot.queue_payloads import (
+from src.bot.keyboards.queue import list_markup, queue_markup, setup_markup
+from src.bot.schemas.queue import (
     QueueDraftPayload,
     QueueSchedulePayload,
     ScheduleSummary,
 )
-from src.bot.queue_ui import (
-    list_markup,
-    local_zone,
-    queue_markup,
-    render_queue,
-    render_queue_list,
-    setup_markup,
-    setup_text,
-)
+from src.bot.utils.queue import local_zone
 from src.bot.utils.telegram import (
     safe_callback_answer,
     safe_delete,
     safe_edit_text_by_id,
+)
+from src.bot.views.queue import (
+    render_queue,
+    render_queue_list,
+    setup_text,
 )
 from src.core.config import config
 from src.db.models import QueueSchedule
@@ -67,6 +65,13 @@ def schedule_summary(schedule: QueueSchedule) -> ScheduleSummary:
         end_minute=schedule.end_minute,
         capacity=schedule.capacity,
     )
+
+
+def ensure_time_defaults(schedule: QueueSchedulePayload) -> None:
+    if schedule.start_minute is None:
+        schedule.start_minute = 9 * 60
+    if schedule.end_minute is None or schedule.end_minute <= schedule.start_minute:
+        schedule.end_minute = min(schedule.start_minute + 60, 24 * 60)
 
 
 async def edit_setup(draft: Any) -> None:
@@ -217,7 +222,8 @@ async def setup_callback(callback: CallbackQuery) -> None:
         elif field == "period":
             target = "date" if schedule.kind == "once" else "day"
         elif field == "time":
-            target = "start"
+            ensure_time_defaults(schedule)
+            target = "time"
         elif field == "capacity":
             target = "capacity"
         else:
@@ -260,27 +266,64 @@ async def setup_callback(callback: CallbackQuery) -> None:
     elif action == "date":
         today = datetime.now(local_zone()).date()
         schedule.once_date = today.fromordinal(today.toordinal() + int(parts[2]))
-        next_step = "edit" if schedule.schedule_id is not None else "start"
+        ensure_time_defaults(schedule)
+        next_step = "edit" if schedule.schedule_id is not None else "time"
         await repository.save_draft(
             draft, step=next_step, payload=payload.model_dump(mode="json")
         )
     elif action == "day":
         schedule.weekday = int(parts[2])
-        next_step = "edit" if schedule.schedule_id is not None else "start"
+        ensure_time_defaults(schedule)
+        next_step = "edit" if schedule.schedule_id is not None else "time"
         await repository.save_draft(
             draft, step=next_step, payload=payload.model_dump(mode="json")
         )
     elif action == "start":
         schedule.start_minute = int(parts[2]) * 60
+        ensure_time_defaults(schedule)
         await repository.save_draft(
-            draft, step="end", payload=payload.model_dump(mode="json")
+            draft,
+            step="time",
+            payload=payload.model_dump(mode="json"),
         )
     elif action == "end":
         schedule.end_minute = int(parts[2]) * 60
-        next_step = "edit" if schedule.schedule_id is not None else "capacity"
+        next_step = "edit" if schedule.schedule_id is not None else "time"
         await repository.save_draft(
             draft, step=next_step, payload=payload.model_dump(mode="json")
         )
+    elif action == "time":
+        ensure_time_defaults(schedule)
+        start_minute = schedule.start_minute
+        end_minute = schedule.end_minute
+        assert start_minute is not None and end_minute is not None
+        if parts[2] == "done":
+            next_step = "edit" if schedule.schedule_id is not None else "capacity"
+            await repository.save_draft(
+                draft, step=next_step, payload=payload.model_dump(mode="json")
+            )
+        else:
+            side, direction = parts[2], parts[3]
+            if side == "start":
+                candidate = start_minute + (60 if direction == "up" else -60)
+                valid = 0 <= candidate < end_minute - 60
+                if valid:
+                    schedule.start_minute = candidate
+            elif side == "end":
+                candidate = end_minute + (60 if direction == "up" else -60)
+                valid = start_minute + 60 < candidate <= 24 * 60
+                if valid:
+                    schedule.end_minute = candidate
+            else:
+                valid = False
+            if not valid:
+                await safe_callback_answer(
+                    callback, "Такой диапазон времени невозможен."
+                )
+                return
+            await repository.save_draft(
+                draft, step="time", payload=payload.model_dump(mode="json")
+            )
     elif action == "save":
         if not schedule.is_complete():
             await safe_callback_answer(

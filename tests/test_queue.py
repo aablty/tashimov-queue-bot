@@ -1,7 +1,8 @@
 import unittest
 from types import SimpleNamespace
 
-from src.bot.handlers.queue import queue_markup, render_queue
+from src.bot.keyboards.queue import queue_markup
+from src.bot.views.queue import render_queue
 
 
 class QueueRenderingTests(unittest.TestCase):

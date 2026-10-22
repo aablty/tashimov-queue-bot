@@ -237,8 +237,10 @@ class QueueRepository:
 
     async def list_queues(self, chat_id: int) -> list[Queue]:
         await self.sync_all(chat_id)
-        queues = await Queue.filter(chat_id=chat_id).prefetch_related("slots").order_by(
-            "starts_at"
+        queues = (
+            await Queue.filter(chat_id=chat_id)
+            .prefetch_related("slots")
+            .order_by("starts_at")
         )
         now = now_utc()
         return [

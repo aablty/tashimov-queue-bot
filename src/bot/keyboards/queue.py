@@ -1,42 +1,23 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from html import escape
 from typing import Any
-from zoneinfo import ZoneInfo
 
 from aiogram.types import DisabledButton, InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from src.bot.queue_payloads import QueueSchedulePayload, ScheduleSummary
+from src.bot.schemas.queue import QueueSchedulePayload, ScheduleSummary
 from src.bot.utils.emoji import PremiumEmoji
+from src.bot.utils.queue import (
+    WEEKDAYS,
+    local_zone,
+    queue_sort_key,
+    summary_period,
+    summary_sort_key,
+    time_text,
+    weekday_text,
+)
 from src.core.config import config
-
-WEEKDAYS = ("Пн", "Вт", "Ср", "Чт", "Пт", "Сб")
-
-
-def local_zone() -> ZoneInfo:
-    return ZoneInfo(config.QUEUE_TIMEZONE)
-
-
-def time_text(start: int | None, end: int | None) -> str:
-    if start is None or end is None:
-        return "не выбрано"
-    return f"{start // 60:02d}:{start % 60:02d}–{end // 60:02d}:{end % 60:02d}"
-
-
-def weekday_text(value: int | None) -> str:
-    return (
-        WEEKDAYS[value]
-        if value is not None and 0 <= value < len(WEEKDAYS)
-        else "не выбран"
-    )
-
-
-def summary_period(item: ScheduleSummary) -> str:
-    if item.kind == "once" and item.once_date is not None:
-        return item.once_date.strftime("%d.%m")
-    return weekday_text(item.weekday)
 
 
 def markup(buttons: list[InlineKeyboardButton], *widths: int) -> InlineKeyboardMarkup:
@@ -51,57 +32,6 @@ def cancel_setup_button() -> InlineKeyboardButton:
         text="Отмена",
         callback_data="qsetup:cancel",
         icon_custom_emoji_id=PremiumEmoji.TAG_CROSS.value or None,
-    )
-
-
-def setup_text(schedule: QueueSchedulePayload, step: str) -> str:
-    if step == "main":
-        return "<b>Расписания группы</b>\n\nВыберите очередь для редактирования или создайте новую."
-    if step == "review":
-        period = (
-            schedule.once_date.strftime("%d.%m.%Y")
-            if schedule.kind == "once" and schedule.once_date
-            else weekday_text(schedule.weekday)
-        )
-        return (
-            f"<b>{escape(schedule.name or 'Очередь')}</b>\n"
-            f"Тип: {'разовая' if schedule.kind == 'once' else 'еженедельная'}\n"
-            f"Период: {period}\nВремя: {time_text(schedule.start_minute, schedule.end_minute)}\n"
-            f"Мест: {schedule.capacity}\n\nВыберите действие:"
-        )
-    if step == "edit":
-        period = (
-            schedule.once_date.strftime("%d.%m.%Y")
-            if schedule.kind == "once" and schedule.once_date
-            else weekday_text(schedule.weekday)
-        )
-        return (
-            f"<b>{escape(schedule.name or 'Очередь')}</b>\n"
-            f"Тип: {('разовая' if schedule.kind == 'once' else 'еженедельная')}\n"
-            f"Период: {period}\nВремя: {time_text(schedule.start_minute, schedule.end_minute)}\n"
-            f"Мест: {schedule.capacity}\n\nВыберите поле для изменения:"
-        )
-    kind = "разовая" if schedule.kind == "once" else "еженедельная"
-    period = (
-        schedule.once_date.strftime("%d.%m.%Y")
-        if schedule.kind == "once" and schedule.once_date
-        else weekday_text(schedule.weekday)
-    )
-    prompt = {
-        "kind": "Выберите тип очереди:",
-        "name": "Отправьте название очереди следующим сообщением.",
-        "date": "Выберите дату:",
-        "day": "Выберите день недели:",
-        "start": "Выберите начало:",
-        "end": "Выберите конец:",
-        "capacity": "Выберите количество мест:",
-    }.get(step, "Настройка очереди")
-    return (
-        "<b>Настройка очереди</b>\n\n"
-        f"Название: <b>{escape(schedule.name or 'не задано')}</b>\n"
-        f"Тип: <b>{kind}</b>\nПериод: <b>{period}</b>\n"
-        f"Время: <b>{time_text(schedule.start_minute, schedule.end_minute)}</b>\n"
-        f"Мест: <b>{schedule.capacity or 'не выбрано'}</b>\n\n{prompt}"
     )
 
 
@@ -124,7 +54,7 @@ def setup_markup(
                         text=f"{item.name[:20]} · {summary_period(item)} {time_text(item.start_minute, item.end_minute)}",
                         callback_data=f"qsetup:edit:{item.id}",
                     )
-                    for item in summaries or []
+                    for item in sorted(summaries or [], key=summary_sort_key)
                 ],
             ],
             1,
@@ -153,11 +83,17 @@ def setup_markup(
     if step == "edit":
         return markup(
             [
-                InlineKeyboardButton(text="Название", callback_data="qsetup:field:name"),
+                InlineKeyboardButton(
+                    text="Название", callback_data="qsetup:field:name"
+                ),
                 InlineKeyboardButton(text="Тип", callback_data="qsetup:field:kind"),
-                InlineKeyboardButton(text="Период", callback_data="qsetup:field:period"),
+                InlineKeyboardButton(
+                    text="Период", callback_data="qsetup:field:period"
+                ),
                 InlineKeyboardButton(text="Время", callback_data="qsetup:field:time"),
-                InlineKeyboardButton(text="Места", callback_data="qsetup:field:capacity"),
+                InlineKeyboardButton(
+                    text="Места", callback_data="qsetup:field:capacity"
+                ),
                 InlineKeyboardButton(
                     text="Сохранить",
                     callback_data="qsetup:save",
@@ -170,11 +106,10 @@ def setup_markup(
                 ),
                 cancel_setup_button(),
             ],
-            1,
+            2,
             3,
             1,
-            1,
-            2
+            2,
         )
     if step == "kind":
         return markup(
@@ -199,7 +134,9 @@ def setup_markup(
             [
                 InlineKeyboardButton(
                     text="Назад",
-                    callback_data="qsetup:editmenu" if edit_menu else "qsetup:back:kind",
+                    callback_data="qsetup:editmenu"
+                    if edit_menu
+                    else "qsetup:back:kind",
                     icon_custom_emoji_id=PremiumEmoji.ARROW_LEFT.value,
                 ),
                 cancel_setup_button(),
@@ -219,7 +156,9 @@ def setup_markup(
                 ],
                 InlineKeyboardButton(
                     text="Назад",
-                    callback_data="qsetup:editmenu" if edit_menu else "qsetup:back:name",
+                    callback_data="qsetup:editmenu"
+                    if edit_menu
+                    else "qsetup:back:name",
                     icon_custom_emoji_id=PremiumEmoji.ARROW_LEFT.value,
                 ),
                 cancel_setup_button(),
@@ -240,7 +179,9 @@ def setup_markup(
                 ],
                 InlineKeyboardButton(
                     text="Назад",
-                    callback_data="qsetup:editmenu" if edit_menu else "qsetup:back:name",
+                    callback_data="qsetup:editmenu"
+                    if edit_menu
+                    else "qsetup:back:name",
                     icon_custom_emoji_id=PremiumEmoji.ARROW_LEFT.value,
                 ),
                 cancel_setup_button(),
@@ -260,13 +201,69 @@ def setup_markup(
                 ],
                 InlineKeyboardButton(
                     text="Назад",
-                    callback_data="qsetup:editmenu" if edit_menu else "qsetup:back:period",
+                    callback_data="qsetup:editmenu"
+                    if edit_menu
+                    else "qsetup:back:period",
                     icon_custom_emoji_id=PremiumEmoji.ARROW_LEFT.value,
                 ),
                 cancel_setup_button(),
             ],
             *([3] * 8),
             2,
+        )
+    if step == "time":
+        start = schedule.start_minute if schedule.start_minute is not None else 9 * 60
+        end = schedule.end_minute if schedule.end_minute is not None else start + 60
+        return markup(
+            [
+                InlineKeyboardButton(
+                    text="↑",
+                    callback_data="qsetup:time:start:up",
+                    disabled=DisabledButton()
+                    if start + 60 >= end or start >= 23 * 60
+                    else None,
+                ),
+                InlineKeyboardButton(
+                    text="↑",
+                    callback_data="qsetup:time:end:up",
+                    disabled=DisabledButton() if end >= 24 * 60 else None,
+                ),
+                InlineKeyboardButton(
+                    text=f"{start // 60:02d}:{start % 60:02d}",
+                    disabled=DisabledButton(),
+                ),
+                InlineKeyboardButton(
+                    text=f"{end // 60:02d}:{end % 60:02d}",
+                    disabled=DisabledButton(),
+                ),
+                InlineKeyboardButton(
+                    text="↓",
+                    callback_data="qsetup:time:start:down",
+                    disabled=DisabledButton() if start <= 0 else None,
+                ),
+                InlineKeyboardButton(
+                    text="↓",
+                    callback_data="qsetup:time:end:down",
+                    disabled=DisabledButton() if end - 60 <= start else None,
+                ),
+                InlineKeyboardButton(
+                    text="Готово",
+                    callback_data="qsetup:time:done",
+                    icon_custom_emoji_id=PremiumEmoji.CHECKMARK.value,
+                ),
+                InlineKeyboardButton(
+                    text="Назад",
+                    callback_data="qsetup:editmenu"
+                    if edit_menu
+                    else "qsetup:back:period",
+                    icon_custom_emoji_id=PremiumEmoji.ARROW_LEFT.value,
+                ),
+                cancel_setup_button(),
+            ],
+            2,
+            2,
+            2,
+            3,
         )
     if step == "end":
         first = (schedule.start_minute or 0) // 60 + 1
@@ -314,24 +311,6 @@ def setup_markup(
     )
 
 
-def render_queue(queue: Any, *, closed: bool = False) -> str:
-    slots = sorted(queue.slots, key=lambda slot: slot.position)
-    occupied = [slot for slot in slots if slot.user_id is not None]
-    starts_at = getattr(queue, "starts_at", None)
-    when = starts_at.astimezone(local_zone()).strftime("%H:%M") if starts_at else ""
-    state = "закрыта" if closed else "активна"
-    lines = [
-        f"<b>{escape(getattr(queue, 'name', 'Очередь'))}</b> · {state} · {when}",
-        f"Занято: {len(occupied)}/{queue.capacity}",
-        "",
-    ]
-    lines.extend(
-        f'{index}. <a href="tg://user?id={slot.user_id}">{escape(slot.user_name or str(slot.user_id))}</a>'
-        for index, slot in enumerate(occupied, 1)
-    )
-    return "\n".join(lines or ["Пока никто не записался."])
-
-
 def queue_markup(queue: Any) -> InlineKeyboardMarkup:
     from src.db.queue import queue_grace_deadline
 
@@ -377,14 +356,6 @@ def queue_markup(queue: Any) -> InlineKeyboardMarkup:
     return slot_builder.as_markup()
 
 
-def render_queue_list(queues: list[Any]) -> str:
-    return (
-        "<b>Очереди на текущую неделю</b>\n\nВыберите очередь:"
-        if queues
-        else "<b>Очереди на текущую неделю</b>\n\nОчередей нет."
-    )
-
-
 def list_markup(queues: list[Any]) -> InlineKeyboardMarkup:
     return markup(
         [
@@ -392,7 +363,7 @@ def list_markup(queues: list[Any]) -> InlineKeyboardMarkup:
                 text=f"{queue.name[:24]} · {weekday_text(queue.starts_at.astimezone(local_zone()).weekday())} {queue.starts_at.astimezone(local_zone()):%H:%M}",
                 callback_data=f"qs:open:{queue.id}",
             )
-            for queue in queues
+            for queue in sorted(queues, key=queue_sort_key)
             if queue.starts_at
         ],
         1,
