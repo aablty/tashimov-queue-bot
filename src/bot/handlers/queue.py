@@ -367,14 +367,14 @@ async def book_slot(callback: CallbackQuery) -> None:
     _, _, queue_id, position = callback.data.split(":")
     try:
         await repository.reserve(int(queue_id), int(position), callback.from_user.id, callback.from_user.full_name, callback.from_user.username)
-    except (QueueClosedError, QueueError, ValueError):
-        await stale(callback)
-        return
     except AlreadyReservedError:
         await safe_callback_answer(callback, "У вас уже есть слот.", show_alert=True)
         return
     except SlotUnavailableError:
         await safe_callback_answer(callback, "Слот уже занят.", show_alert=True)
+        return
+    except (QueueClosedError, QueueError, ValueError):
+        await stale(callback)
         return
     queue = await repository.get(int(queue_id))
     if queue is None:

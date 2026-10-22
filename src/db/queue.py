@@ -236,9 +236,17 @@ class QueueRepository:
                 and queue_grace_deadline(queue.ends_at) <= now_utc()
             ):
                 raise QueueClosedError
-            existing = await QueueSlot.filter(queue_id=queue_id, user_id=user_id).using_db(connection).first()
-            if existing is not None:
+            existing = (
+                await QueueSlot.filter(queue_id=queue_id, user_id=user_id)
+                .using_db(connection)
+                .select_for_update()
+                .first()
+            )
+            if existing is not None and existing.position == position:
                 raise AlreadyReservedError
+            if existing is not None:
+                existing.user_id = existing.user_name = existing.username = existing.reserved_at = None
+                await existing.save(using_db=connection)
             slot = await QueueSlot.filter(queue_id=queue_id, position=position).using_db(connection).select_for_update().first()
             if slot is None or slot.user_id is not None:
                 raise SlotUnavailableError
