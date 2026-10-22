@@ -50,7 +50,7 @@ def cancel_setup_button() -> InlineKeyboardButton:
     return InlineKeyboardButton(
         text="Отмена",
         callback_data="qsetup:cancel",
-        icon_custom_emoji_id=PremiumEmoji.BACK.value or None,
+        icon_custom_emoji_id=PremiumEmoji.TAG_CROSS.value or None,
     )
 
 
@@ -104,7 +104,7 @@ def setup_markup(
                 InlineKeyboardButton(
                     text="Новая очередь",
                     callback_data="qsetup:new",
-                    icon_custom_emoji_id=PremiumEmoji.ADD_QUEUE.value,
+                    icon_custom_emoji_id=PremiumEmoji.PLUS.value,
                 ),
                 *[
                     InlineKeyboardButton(
@@ -122,16 +122,17 @@ def setup_markup(
                 InlineKeyboardButton(
                     text="Изменить",
                     callback_data=f"qsetup:editform:{schedule.schedule_id}",
+                    icon_custom_emoji_id=PremiumEmoji.BRUSH.value,
                 ),
                 InlineKeyboardButton(
                     text="Удалить",
                     callback_data=f"qsetup:delete:{schedule.schedule_id}",
-                    icon_custom_emoji_id=PremiumEmoji.REMOVE_QUEUE.value,
+                    icon_custom_emoji_id=PremiumEmoji.TRASH.value,
                 ),
                 InlineKeyboardButton(
                     text="Отмена",
                     callback_data="qsetup:cancel",
-                    icon_custom_emoji_id=PremiumEmoji.BACK.value,
+                    icon_custom_emoji_id=PremiumEmoji.TAG_CROSS.value,
                 ),
             ],
             1,
@@ -139,9 +140,15 @@ def setup_markup(
     if step == "kind":
         return markup(
             [
-                InlineKeyboardButton(text="Разовая", callback_data="qsetup:kind:once"),
                 InlineKeyboardButton(
-                    text="Еженедельная", callback_data="qsetup:kind:weekly"
+                    text="Разовая",
+                    callback_data="qsetup:kind:once",
+                    icon_custom_emoji_id=PremiumEmoji.DOT.value,
+                ),
+                InlineKeyboardButton(
+                    text="Еженедельная",
+                    callback_data="qsetup:kind:weekly",
+                    icon_custom_emoji_id=PremiumEmoji.CALENDAR.value,
                 ),
                 cancel_setup_button(),
             ],
@@ -154,7 +161,7 @@ def setup_markup(
                 InlineKeyboardButton(
                     text="Назад",
                     callback_data="qsetup:back:kind",
-                    icon_custom_emoji_id=PremiumEmoji.BACK.value,
+                    icon_custom_emoji_id=PremiumEmoji.ARROW_LEFT.value,
                 ),
                 cancel_setup_button(),
             ],
@@ -174,7 +181,7 @@ def setup_markup(
                 InlineKeyboardButton(
                     text="Назад",
                     callback_data="qsetup:back:name",
-                    icon_custom_emoji_id=PremiumEmoji.BACK.value,
+                    icon_custom_emoji_id=PremiumEmoji.ARROW_LEFT.value,
                 ),
                 cancel_setup_button(),
             ],
@@ -195,7 +202,7 @@ def setup_markup(
                 InlineKeyboardButton(
                     text="Назад",
                     callback_data="qsetup:back:name",
-                    icon_custom_emoji_id=PremiumEmoji.BACK.value,
+                    icon_custom_emoji_id=PremiumEmoji.ARROW_LEFT.value,
                 ),
                 cancel_setup_button(),
             ],
@@ -215,7 +222,7 @@ def setup_markup(
                 InlineKeyboardButton(
                     text="Назад",
                     callback_data="qsetup:back:period",
-                    icon_custom_emoji_id=PremiumEmoji.BACK.value,
+                    icon_custom_emoji_id=PremiumEmoji.ARROW_LEFT.value,
                 ),
                 cancel_setup_button(),
             ],
@@ -240,7 +247,7 @@ def setup_markup(
                 InlineKeyboardButton(
                     text="Назад",
                     callback_data="qsetup:back:start",
-                    icon_custom_emoji_id=PremiumEmoji.BACK.value,
+                    icon_custom_emoji_id=PremiumEmoji.ARROW_LEFT.value,
                 ),
                 cancel_setup_button(),
             ],
@@ -259,7 +266,7 @@ def setup_markup(
             InlineKeyboardButton(
                 text="Назад",
                 callback_data="qsetup:back:end",
-                icon_custom_emoji_id=PremiumEmoji.BACK.value,
+                icon_custom_emoji_id=PremiumEmoji.ARROW_LEFT.value,
             ),
             cancel_setup_button(),
         ],
@@ -308,17 +315,17 @@ def queue_markup(queue: Any) -> InlineKeyboardMarkup:
         InlineKeyboardButton(
             text="Освободить",
             callback_data=f"queue:release:{queue.id}",
-            icon_custom_emoji_id=PremiumEmoji.RELEASE_SLOT.value,
+            icon_custom_emoji_id=PremiumEmoji.ERASER.value,
         ),
         InlineKeyboardButton(
             text="Обновить",
             callback_data=f"queue:refresh:{queue.id}",
-            icon_custom_emoji_id=PremiumEmoji.REFRESH_QUEUE.value,
+            icon_custom_emoji_id=PremiumEmoji.REFRESH.value,
         ),
         InlineKeyboardButton(
             text="К списку",
             callback_data="qs:list",
-            icon_custom_emoji_id=PremiumEmoji.BACK.value,
+            icon_custom_emoji_id=PremiumEmoji.ARROW_LEFT.value,
         ),
     ]
     slot_builder = InlineKeyboardBuilder()
