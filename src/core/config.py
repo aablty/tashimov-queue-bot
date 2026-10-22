@@ -13,10 +13,23 @@ class Config(BaseSettings):
 
     APP_API_KEY: SecretStr
     BOT_TOKEN: SecretStr
-    TEACHER_ID: int
+    TEACHER_IDS: str
     QUEUE_MAX_SLOTS: int = 100
     QUEUE_DEFAULT_SLOTS: int = 25
     QUEUE_TIMEZONE: str = "Asia/Qyzylorda"
+
+    @property
+    def teacher_ids(self) -> frozenset[int]:
+        """Return all users allowed to manage queues.
+
+        TEACHER_IDS accepts comma-, semicolon-, or whitespace-separated IDs.
+        """
+        values: set[int] = set()
+        for raw_value in self.TEACHER_IDS.replace(";", ",").replace(" ", ",").split(","):
+            value = raw_value.strip()
+            if value:
+                values.add(int(value))
+        return frozenset(values)
 
     PGHOST: str
     PGDATABASE: str

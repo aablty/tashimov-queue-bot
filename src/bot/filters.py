@@ -1,3 +1,5 @@
+from collections.abc import Collection
+
 from aiogram.filters import BaseFilter
 from aiogram.types import CallbackQuery, Message
 
@@ -15,8 +17,12 @@ class GroupOnly(BaseFilter):
 
 
 class TeacherOnly(BaseFilter):
-    def __init__(self, teacher_id: int) -> None:
-        self.teacher_id = teacher_id
+    def __init__(self, teacher_ids: int | Collection[int]) -> None:
+        self.teacher_ids = (
+            {teacher_ids} if isinstance(teacher_ids, int) else set(teacher_ids)
+        )
 
     async def __call__(self, message: Message) -> bool:
-        return message.from_user is not None and message.from_user.id == self.teacher_id
+        return (
+            message.from_user is not None and message.from_user.id in self.teacher_ids
+        )

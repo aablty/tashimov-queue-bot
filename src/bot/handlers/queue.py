@@ -231,7 +231,7 @@ async def start_setup(message: Message, schedule: QueueSchedule | None = None) -
     )
 
 
-@router.message(Command("q"), GroupOnly(), TeacherOnly(config.TEACHER_ID))
+@router.message(Command("q"), GroupOnly(), TeacherOnly(config.teacher_ids))
 async def queue_command(message: Message, command: CommandObject) -> None:
     if (command.args or "").strip():
         await message.answer(
@@ -241,7 +241,7 @@ async def queue_command(message: Message, command: CommandObject) -> None:
     await start_setup(message)
 
 
-@router.message(F.text, GroupOnly(), TeacherOnly(config.TEACHER_ID))
+@router.message(F.text, GroupOnly(), TeacherOnly(config.teacher_ids))
 async def setup_name(message: Message) -> None:
     draft = await repository.get_draft(message.chat.id)
     if draft is None or draft.step != "name" or not message.text:
