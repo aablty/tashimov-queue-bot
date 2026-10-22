@@ -462,8 +462,17 @@ def queue_markup(queue: Any) -> InlineKeyboardMarkup:
 def render_queue_list(queues: list[Queue]) -> str:
     if not queues:
         return "<b>Очереди на текущую неделю</b>\n\nОчередей нет."
+
+    weekdays = ("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс")
+
+    def format_start(queue: Queue) -> str:
+        if queue.starts_at is None:
+            return ""
+        start = queue.starts_at.astimezone()
+        return f"{weekdays[start.weekday()]} {start:%d.%m %H:%M}"
+
     return "<b>Очереди на текущую неделю</b>\n\n" + "\n".join(
-        f"• {escape(q.name)} — {q.starts_at.astimezone().strftime('%a %d.%m %H:%M')} ({q.capacity} мест)"
+        f"• {escape(q.name)} — {format_start(q)} ({q.capacity} мест)"
         for q in queues
         if q.starts_at
     )

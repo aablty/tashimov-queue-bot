@@ -141,10 +141,7 @@ class QueueRepository:
                     )
                     position += 1
         await self.sync_schedule(schedule.id)
-        result = await self.get_schedule(schedule.id)
-        if result is None:
-            raise QueueError
-        return result
+        return schedule
 
     async def update_schedule(self, schedule_id: int, **values: object) -> QueueSchedule:
         schedule = await self.get_schedule(schedule_id)
@@ -175,10 +172,7 @@ class QueueRepository:
                     )
                     position += 1
         await self.sync_schedule(schedule.id)
-        result = await self.get_schedule(schedule.id)
-        if result is None:
-            raise QueueError
-        return result
+        return schedule
 
     async def delete_schedule(self, schedule_id: int) -> None:
         schedule = await QueueSchedule.get_or_none(id=schedule_id)
