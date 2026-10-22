@@ -26,7 +26,9 @@ class Config(BaseSettings):
         TEACHER_IDS accepts comma-, semicolon-, or whitespace-separated IDs.
         """
         values: set[int] = set()
-        for raw_value in self.TEACHER_IDS.replace(";", ",").replace(" ", ",").split(","):
+        for raw_value in (
+            self.TEACHER_IDS.replace(";", ",").replace(" ", ",").split(",")
+        ):
             value = raw_value.strip()
             if value:
                 values.add(int(value))

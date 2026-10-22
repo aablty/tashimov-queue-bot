@@ -54,7 +54,9 @@ class QueueRepository:
         return await Queue.filter(id=queue_id).prefetch_related("slots").first()
 
     async def list_schedules(self, chat_id: int) -> list[QueueSchedule]:
-        return await QueueSchedule.filter(chat_id=chat_id, enabled=True).order_by("created_at")
+        return await QueueSchedule.filter(chat_id=chat_id, enabled=True).order_by(
+            "created_at"
+        )
 
     async def get_schedule(self, schedule_id: int) -> QueueSchedule | None:
         return await QueueSchedule.get_or_none(id=schedule_id)
@@ -120,7 +122,9 @@ class QueueRepository:
         await self.sync_schedule(schedule.id)
         return schedule
 
-    async def update_schedule(self, schedule_id: int, **values: object) -> QueueSchedule:
+    async def update_schedule(
+        self, schedule_id: int, **values: object
+    ) -> QueueSchedule:
         schedule = await self.get_schedule(schedule_id)
         if schedule is None:
             raise QueueError
@@ -179,11 +183,15 @@ class QueueRepository:
         existing = await Queue.filter(occurrence_key=occurrence).first()
         if existing is None:
             try:
-                await self._create_occurrence(schedule, occurrence, starts_at, ends_at, current_week)
+                await self._create_occurrence(
+                    schedule, occurrence, starts_at, ends_at, current_week
+                )
             except IntegrityError:
                 return
         elif schedule.kind == "weekly" and current_week is not None:
-            await self._refresh_weekly_occurrence(existing, starts_at, ends_at, current_week)
+            await self._refresh_weekly_occurrence(
+                existing, starts_at, ends_at, current_week
+            )
 
     async def _create_occurrence(
         self,
@@ -207,7 +215,10 @@ class QueueRepository:
                 using_db=connection,
             )
             await QueueSlot.bulk_create(
-                [QueueSlot(queue=queue, position=i) for i in range(1, schedule.capacity + 1)],
+                [
+                    QueueSlot(queue=queue, position=i)
+                    for i in range(1, schedule.capacity + 1)
+                ],
                 using_db=connection,
             )
         return queue
@@ -226,9 +237,20 @@ class QueueRepository:
 
     async def list_queues(self, chat_id: int) -> list[Queue]:
         await self.sync_all(chat_id)
-        return await Queue.filter(chat_id=chat_id, ends_at__gt=now_utc()).prefetch_related("slots").order_by("starts_at")
+        return (
+            await Queue.filter(chat_id=chat_id, ends_at__gt=now_utc())
+            .prefetch_related("slots")
+            .order_by("starts_at")
+        )
 
-    async def reserve(self, queue_id: int, position: int, user_id: int, name: str, username: str | None) -> QueueSlot:
+    async def reserve(
+        self,
+        queue_id: int,
+        position: int,
+        user_id: int,
+        name: str,
+        username: str | None,
+    ) -> QueueSlot:
         async with in_transaction() as connection:
             queue = await Queue.filter(id=queue_id).using_db(connection).first()
             if queue is None or (
@@ -245,12 +267,24 @@ class QueueRepository:
             if existing is not None and existing.position == position:
                 raise AlreadyReservedError
             if existing is not None:
-                existing.user_id = existing.user_name = existing.username = existing.reserved_at = None
+                existing.user_id = existing.user_name = existing.username = (
+                    existing.reserved_at
+                ) = None
                 await existing.save(using_db=connection)
-            slot = await QueueSlot.filter(queue_id=queue_id, position=position).using_db(connection).select_for_update().first()
+            slot = (
+                await QueueSlot.filter(queue_id=queue_id, position=position)
+                .using_db(connection)
+                .select_for_update()
+                .first()
+            )
             if slot is None or slot.user_id is not None:
                 raise SlotUnavailableError
-            slot.user_id, slot.user_name, slot.username, slot.reserved_at = user_id, name, username, now_utc()
+            slot.user_id, slot.user_name, slot.username, slot.reserved_at = (
+                user_id,
+                name,
+                username,
+                now_utc(),
+            )
             await slot.save(using_db=connection)
             return slot
 
@@ -262,7 +296,12 @@ class QueueRepository:
                 and queue_grace_deadline(queue.ends_at) <= now_utc()
             ):
                 raise QueueClosedError
-            slot = await QueueSlot.filter(queue_id=queue_id, user_id=user_id).using_db(connection).select_for_update().first()
+            slot = (
+                await QueueSlot.filter(queue_id=queue_id, user_id=user_id)
+                .using_db(connection)
+                .select_for_update()
+                .first()
+            )
             if slot is None:
                 raise NotReservedError
             slot.user_id = slot.user_name = slot.username = slot.reserved_at = None
