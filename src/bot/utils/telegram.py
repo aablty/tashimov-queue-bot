@@ -1,7 +1,7 @@
 import logging
 
 from aiogram import Bot
-from aiogram.exceptions import TelegramBadRequest
+from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
 
 logger = logging.getLogger(__name__)
@@ -98,6 +98,9 @@ async def safe_delete(message: Message) -> bool:
     """Delete a message when possible and ignore already-gone messages."""
     try:
         await message.delete()
+    except TelegramForbiddenError as exc:
+        logger.debug("Ignoring message delete without permissions: %s", exc)
+        return False
     except TelegramBadRequest as exc:
         if not is_safe_delete_error(exc):
             raise

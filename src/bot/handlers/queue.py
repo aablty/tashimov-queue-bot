@@ -23,7 +23,11 @@ from src.bot.queue_ui import (
     setup_markup,
     setup_text,
 )
-from src.bot.utils.telegram import safe_callback_answer, safe_edit_text_by_id
+from src.bot.utils.telegram import (
+    safe_callback_answer,
+    safe_delete,
+    safe_edit_text_by_id,
+)
 from src.core.config import config
 from src.db.models import QueueSchedule
 from src.db.queue import (
@@ -128,11 +132,16 @@ async def setup_name(message: Message) -> None:
         return
     payload = draft_payload(draft)
     payload.schedule.name = message.text.strip()[:255] or "Очередь"
-    next_step = "date" if payload.schedule.kind == "once" else "day"
+    next_step = (
+        "edit"
+        if payload.schedule.schedule_id is not None
+        else ("date" if payload.schedule.kind == "once" else "day")
+    )
     await repository.save_draft(
         draft, step=next_step, payload=payload.model_dump(mode="json")
     )
     await edit_setup(draft)
+    await safe_delete(message)
 
 
 @router.callback_query(F.data.startswith("qsetup:"), GroupOnly())
@@ -186,10 +195,36 @@ async def setup_callback(callback: CallbackQuery) -> None:
         )
         await repository.save_draft(
             draft,
-            step="review" if action == "edit" else "kind",
+            step="review" if action == "edit" else "edit",
             payload=QueueDraftPayload(schedule=selected_payload).model_dump(
                 mode="json"
             ),
+        )
+    elif action == "review":
+        await repository.save_draft(
+            draft, step="review", payload=payload.model_dump(mode="json")
+        )
+    elif action == "editmenu":
+        await repository.save_draft(
+            draft, step="edit", payload=payload.model_dump(mode="json")
+        )
+    elif action == "field":
+        field = parts[2]
+        if field == "name":
+            target = "name"
+        elif field == "kind":
+            target = "kind"
+        elif field == "period":
+            target = "date" if schedule.kind == "once" else "day"
+        elif field == "time":
+            target = "start"
+        elif field == "capacity":
+            target = "capacity"
+        else:
+            await safe_callback_answer(callback, "Неизвестное поле.", show_alert=True)
+            return
+        await repository.save_draft(
+            draft, step=target, payload=payload.model_dump(mode="json")
         )
     elif action == "delete":
         await repository.delete_schedule(int(parts[2]))
@@ -206,9 +241,14 @@ async def setup_callback(callback: CallbackQuery) -> None:
             draft, step="main", payload=payload.model_dump(mode="json")
         )
     elif action == "kind":
-        schedule.kind = cast(Literal["once", "weekly"], parts[2])
+        new_kind = cast(Literal["once", "weekly"], parts[2])
+        if new_kind != schedule.kind:
+            schedule.once_date = None
+            schedule.weekday = None
+        schedule.kind = new_kind
+        next_step = "edit" if schedule.schedule_id is not None else "name"
         await repository.save_draft(
-            draft, step="name", payload=payload.model_dump(mode="json")
+            draft, step=next_step, payload=payload.model_dump(mode="json")
         )
     elif action == "back":
         target = parts[2]
@@ -220,13 +260,15 @@ async def setup_callback(callback: CallbackQuery) -> None:
     elif action == "date":
         today = datetime.now(local_zone()).date()
         schedule.once_date = today.fromordinal(today.toordinal() + int(parts[2]))
+        next_step = "edit" if schedule.schedule_id is not None else "start"
         await repository.save_draft(
-            draft, step="start", payload=payload.model_dump(mode="json")
+            draft, step=next_step, payload=payload.model_dump(mode="json")
         )
     elif action == "day":
         schedule.weekday = int(parts[2])
+        next_step = "edit" if schedule.schedule_id is not None else "start"
         await repository.save_draft(
-            draft, step="start", payload=payload.model_dump(mode="json")
+            draft, step=next_step, payload=payload.model_dump(mode="json")
         )
     elif action == "start":
         schedule.start_minute = int(parts[2]) * 60
@@ -235,11 +277,45 @@ async def setup_callback(callback: CallbackQuery) -> None:
         )
     elif action == "end":
         schedule.end_minute = int(parts[2]) * 60
+        next_step = "edit" if schedule.schedule_id is not None else "capacity"
         await repository.save_draft(
-            draft, step="capacity", payload=payload.model_dump(mode="json")
+            draft, step=next_step, payload=payload.model_dump(mode="json")
         )
+    elif action == "save":
+        if not schedule.is_complete():
+            await safe_callback_answer(
+                callback, "Заполните все поля очереди.", show_alert=True
+            )
+            return
+        values = schedule.model_dump(exclude={"schedule_id"})
+        if schedule.schedule_id is None:
+            await repository.create_schedule(
+                chat_id=draft.chat_id,
+                teacher_id=draft.teacher_id,
+                timezone=config.QUEUE_TIMEZONE,
+                **values,
+            )
+        else:
+            await repository.update_schedule(schedule.schedule_id, **values)
+        await draft.delete()
+        await safe_callback_answer(callback, "Сохранено.")
+        await safe_edit_text_by_id(
+            bot,
+            callback.message.chat.id,
+            callback.message.message_id,
+            "<b>Очередь сохранена.</b>\n\nОткрыть очереди: /qs",
+            None,
+        )
+        return
     elif action == "capacity":
         schedule.capacity = min(int(parts[2]), config.QUEUE_MAX_SLOTS)
+        if schedule.schedule_id is not None:
+            await repository.save_draft(
+                draft, step="edit", payload=payload.model_dump(mode="json")
+            )
+            await safe_callback_answer(callback)
+            await edit_setup(draft)
+            return
         if not schedule.is_complete():
             await safe_callback_answer(
                 callback, "Заполните все поля очереди.", show_alert=True

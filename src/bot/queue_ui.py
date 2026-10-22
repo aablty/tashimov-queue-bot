@@ -69,6 +69,18 @@ def setup_text(schedule: QueueSchedulePayload, step: str) -> str:
             f"Период: {period}\nВремя: {time_text(schedule.start_minute, schedule.end_minute)}\n"
             f"Мест: {schedule.capacity}\n\nВыберите действие:"
         )
+    if step == "edit":
+        period = (
+            schedule.once_date.strftime("%d.%m.%Y")
+            if schedule.kind == "once" and schedule.once_date
+            else weekday_text(schedule.weekday)
+        )
+        return (
+            f"<b>{escape(schedule.name or 'Очередь')}</b>\n"
+            f"Тип: {('разовая' if schedule.kind == 'once' else 'еженедельная')}\n"
+            f"Период: {period}\nВремя: {time_text(schedule.start_minute, schedule.end_minute)}\n"
+            f"Мест: {schedule.capacity}\n\nВыберите поле для изменения:"
+        )
     kind = "разовая" if schedule.kind == "once" else "еженедельная"
     period = (
         schedule.once_date.strftime("%d.%m.%Y")
@@ -98,6 +110,7 @@ def setup_markup(
     step: str,
     summaries: list[ScheduleSummary] | None = None,
 ) -> InlineKeyboardMarkup:
+    edit_menu = schedule.schedule_id is not None
     if step == "main":
         return markup(
             [
@@ -137,6 +150,31 @@ def setup_markup(
             ],
             1,
         )
+    if step == "edit":
+        return markup(
+            [
+                InlineKeyboardButton(text="Название", callback_data="qsetup:field:name"),
+                InlineKeyboardButton(text="Тип", callback_data="qsetup:field:kind"),
+                InlineKeyboardButton(text="Период", callback_data="qsetup:field:period"),
+                InlineKeyboardButton(text="Время", callback_data="qsetup:field:time"),
+                InlineKeyboardButton(text="Места", callback_data="qsetup:field:capacity"),
+                InlineKeyboardButton(
+                    text="Сохранить",
+                    callback_data="qsetup:save",
+                    icon_custom_emoji_id=PremiumEmoji.SAVE.value,
+                ),
+                InlineKeyboardButton(
+                    text="Назад",
+                    callback_data="qsetup:review",
+                    icon_custom_emoji_id=PremiumEmoji.ARROW_LEFT.value,
+                ),
+                cancel_setup_button(),
+            ],
+            2,
+            2,
+            1,
+            2,
+        )
     if step == "kind":
         return markup(
             [
@@ -160,7 +198,7 @@ def setup_markup(
             [
                 InlineKeyboardButton(
                     text="Назад",
-                    callback_data="qsetup:back:kind",
+                    callback_data="qsetup:editmenu" if edit_menu else "qsetup:back:kind",
                     icon_custom_emoji_id=PremiumEmoji.ARROW_LEFT.value,
                 ),
                 cancel_setup_button(),
@@ -180,7 +218,7 @@ def setup_markup(
                 ],
                 InlineKeyboardButton(
                     text="Назад",
-                    callback_data="qsetup:back:name",
+                    callback_data="qsetup:editmenu" if edit_menu else "qsetup:back:name",
                     icon_custom_emoji_id=PremiumEmoji.ARROW_LEFT.value,
                 ),
                 cancel_setup_button(),
@@ -201,7 +239,7 @@ def setup_markup(
                 ],
                 InlineKeyboardButton(
                     text="Назад",
-                    callback_data="qsetup:back:name",
+                    callback_data="qsetup:editmenu" if edit_menu else "qsetup:back:name",
                     icon_custom_emoji_id=PremiumEmoji.ARROW_LEFT.value,
                 ),
                 cancel_setup_button(),
@@ -221,7 +259,7 @@ def setup_markup(
                 ],
                 InlineKeyboardButton(
                     text="Назад",
-                    callback_data="qsetup:back:period",
+                    callback_data="qsetup:editmenu" if edit_menu else "qsetup:back:period",
                     icon_custom_emoji_id=PremiumEmoji.ARROW_LEFT.value,
                 ),
                 cancel_setup_button(),
