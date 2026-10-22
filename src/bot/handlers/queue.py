@@ -152,7 +152,7 @@ async def setup_callback(callback: CallbackQuery) -> None:
     action = parts[1]
     schedule = payload.schedule
 
-    if action == "main":
+    if action in {"main", "cancel"}:
         schedules = await repository.list_schedules(draft.chat_id)
         payload = QueueDraftPayload(
             schedules=[
@@ -265,7 +265,10 @@ async def setup_callback(callback: CallbackQuery) -> None:
             None,
         )
         return
-    await safe_callback_answer(callback)
+    await safe_callback_answer(
+        callback,
+        "Настройка отменена." if action == "cancel" else None,
+    )
     await edit_setup(draft)
 
 

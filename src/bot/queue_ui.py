@@ -46,6 +46,14 @@ def markup(buttons: list[InlineKeyboardButton], *widths: int) -> InlineKeyboardM
     return builder.as_markup()
 
 
+def cancel_setup_button() -> InlineKeyboardButton:
+    return InlineKeyboardButton(
+        text="Отмена",
+        callback_data="qsetup:cancel",
+        icon_custom_emoji_id=PremiumEmoji.BACK.value or None,
+    )
+
+
 def setup_text(schedule: QueueSchedulePayload, step: str) -> str:
     if step == "main":
         return "<b>Расписания группы</b>\n\nВыберите очередь для редактирования или создайте новую."
@@ -121,8 +129,8 @@ def setup_markup(
                     icon_custom_emoji_id=PremiumEmoji.REMOVE_QUEUE.value,
                 ),
                 InlineKeyboardButton(
-                    text="Назад",
-                    callback_data="qsetup:main",
+                    text="Отмена",
+                    callback_data="qsetup:cancel",
                     icon_custom_emoji_id=PremiumEmoji.BACK.value,
                 ),
             ],
@@ -135,8 +143,10 @@ def setup_markup(
                 InlineKeyboardButton(
                     text="Еженедельная", callback_data="qsetup:kind:weekly"
                 ),
+                cancel_setup_button(),
             ],
             2,
+            1,
         )
     if step == "name":
         return markup(
@@ -145,9 +155,10 @@ def setup_markup(
                     text="Назад",
                     callback_data="qsetup:back:kind",
                     icon_custom_emoji_id=PremiumEmoji.BACK.value,
-                )
+                ),
+                cancel_setup_button(),
             ],
-            1,
+            2,
         )
     if step == "date":
         now = datetime.now(local_zone()).date()
@@ -165,9 +176,12 @@ def setup_markup(
                     callback_data="qsetup:back:name",
                     icon_custom_emoji_id=PremiumEmoji.BACK.value,
                 ),
+                cancel_setup_button(),
             ],
             3,
+            3,
             1,
+            2,
         )
     if step == "day":
         return markup(
@@ -183,9 +197,11 @@ def setup_markup(
                     callback_data="qsetup:back:name",
                     icon_custom_emoji_id=PremiumEmoji.BACK.value,
                 ),
+                cancel_setup_button(),
             ],
             3,
-            1,
+            3,
+            2,
         )
     if step == "start":
         return markup(
@@ -201,12 +217,18 @@ def setup_markup(
                     callback_data="qsetup:back:period",
                     icon_custom_emoji_id=PremiumEmoji.BACK.value,
                 ),
+                cancel_setup_button(),
             ],
-            3,
-            1,
+            *([3] * 8),
+            2,
         )
     if step == "end":
         first = (schedule.start_minute or 0) // 60 + 1
+        count = 24 - first
+        widths = [3] * (count // 3)
+        if count % 3:
+            widths.append(count % 3)
+        widths.append(2)
         return markup(
             [
                 *[
@@ -220,9 +242,9 @@ def setup_markup(
                     callback_data="qsetup:back:start",
                     icon_custom_emoji_id=PremiumEmoji.BACK.value,
                 ),
+                cancel_setup_button(),
             ],
-            3,
-            1,
+            *widths,
         )
     values = [1, 5, 10, 15, 20, 25, 50, config.QUEUE_MAX_SLOTS]
     return markup(
@@ -239,9 +261,10 @@ def setup_markup(
                 callback_data="qsetup:back:end",
                 icon_custom_emoji_id=PremiumEmoji.BACK.value,
             ),
+            cancel_setup_button(),
         ],
         8,
-        1,
+        2,
     )
 
 
