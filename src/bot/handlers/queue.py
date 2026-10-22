@@ -411,7 +411,11 @@ def render_queue(queue: Any, *, closed: bool = False) -> str:
     slots = sorted(queue.slots, key=lambda slot: slot.position)
     occupied = [slot for slot in slots if slot.user_id is not None]
     starts_at = getattr(queue, "starts_at", None)
-    when = starts_at.astimezone().strftime("%d.%m %H:%M") if starts_at else ""
+    when = (
+        starts_at.astimezone(ZoneInfo(config.QUEUE_TIMEZONE)).strftime("%d.%m %H:%M")
+        if starts_at
+        else ""
+    )
     state = "закрыта" if closed else "активна"
     lines = [
         f"<b>{escape(getattr(queue, 'name', 'Очередь'))}</b> · {state} · {when}",
@@ -468,7 +472,7 @@ def render_queue_list(queues: list[Queue]) -> str:
     def format_start(queue: Queue) -> str:
         if queue.starts_at is None:
             return ""
-        start = queue.starts_at.astimezone()
+        start = queue.starts_at.astimezone(ZoneInfo(config.QUEUE_TIMEZONE))
         return f"{weekdays[start.weekday()]} {start:%d.%m %H:%M}"
 
     return "<b>Очереди на текущую неделю</b>\n\n" + "\n".join(
@@ -483,7 +487,7 @@ def list_markup(queues: list[Queue]) -> InlineKeyboardMarkup:
         inline_keyboard=[
             [
                 b(
-                    f"{q.starts_at.astimezone().strftime('%d.%m %H:%M')} · {q.name[:18]}",
+                    f"{q.starts_at.astimezone(ZoneInfo(config.QUEUE_TIMEZONE)):%d.%m %H:%M} · {q.name[:18]}",
                     f"qs:open:{q.id}",
                 )
             ]
