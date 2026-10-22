@@ -7,6 +7,8 @@ from zoneinfo import ZoneInfo
 from tortoise.exceptions import IntegrityError
 from tortoise.transactions import in_transaction
 
+from src.core.config import config
+
 from .models import Queue, QueueSchedule, QueueSetupDraft, QueueSlot
 
 
@@ -41,6 +43,10 @@ def local_datetime(day: date, minute: int, timezone: str) -> datetime:
 
 def now_utc() -> datetime:
     return datetime.now(UTC)
+
+
+def queue_grace_deadline(ends_at: datetime) -> datetime:
+    return ends_at + timedelta(minutes=config.QUEUE_GRACE_MINUTES)
 
 
 class QueueRepository:
@@ -146,7 +152,7 @@ class QueueRepository:
             expires_at = local_datetime(
                 schedule.once_date, schedule.end_minute, schedule.timezone
             )
-            if expires_at <= now_utc():
+            if queue_grace_deadline(expires_at) <= now_utc():
                 await schedule.delete()
 
     async def sync_schedule(self, schedule_id: int) -> None:
@@ -225,7 +231,10 @@ class QueueRepository:
     async def reserve(self, queue_id: int, position: int, user_id: int, name: str, username: str | None) -> QueueSlot:
         async with in_transaction() as connection:
             queue = await Queue.filter(id=queue_id).using_db(connection).first()
-            if queue is None or (queue.ends_at is not None and queue.ends_at <= now_utc()):
+            if queue is None or (
+                queue.ends_at is not None
+                and queue_grace_deadline(queue.ends_at) <= now_utc()
+            ):
                 raise QueueClosedError
             existing = await QueueSlot.filter(queue_id=queue_id, user_id=user_id).using_db(connection).first()
             if existing is not None:
@@ -240,7 +249,10 @@ class QueueRepository:
     async def release(self, queue_id: int, user_id: int) -> QueueSlot:
         async with in_transaction() as connection:
             queue = await Queue.filter(id=queue_id).using_db(connection).first()
-            if queue is None or (queue.ends_at is not None and queue.ends_at <= now_utc()):
+            if queue is None or (
+                queue.ends_at is not None
+                and queue_grace_deadline(queue.ends_at) <= now_utc()
+            ):
                 raise QueueClosedError
             slot = await QueueSlot.filter(queue_id=queue_id, user_id=user_id).using_db(connection).select_for_update().first()
             if slot is None:

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from html import escape
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -28,6 +28,7 @@ from src.db.queue import (
     QueueError,
     QueueRepository,
     SlotUnavailableError,
+    queue_grace_deadline,
 )
 
 router = Router(name="queue")
@@ -300,13 +301,17 @@ def render_queue(queue: Any, *, closed: bool = False) -> str:
     occupied = [slot for slot in slots if slot.user_id is not None]
     starts_at = getattr(queue, "starts_at", None)
     when = starts_at.astimezone(local_zone()).strftime("%H:%M") if starts_at else ""
-    state = "закрыта" if closed else "активна"
+    ends_at = getattr(queue, "ends_at", None)
+    state = "закрыта" if closed or (ends_at is not None and queue_grace_deadline(ends_at) <= datetime.now(UTC)) else "активна"
     lines = [f"<b>{escape(getattr(queue, 'name', 'Очередь'))}</b> · {state} · {when}", f"Занято: {len(occupied)}/{queue.capacity}", ""]
     lines.extend(f'{index}. <a href="tg://user?id={slot.user_id}">{escape(slot.user_name or str(slot.user_id))}</a>' for index, slot in enumerate(occupied, 1))
     return "\n".join(lines or ["Пока никто не записался."])
 
 
 def queue_markup(queue: Any) -> InlineKeyboardMarkup:
+    ends_at = getattr(queue, "ends_at", None)
+    if ends_at is not None and queue_grace_deadline(ends_at) <= datetime.now(UTC):
+        return empty_markup()
     slots = sorted(queue.slots, key=lambda item: item.position)
     rows = [[InlineKeyboardButton(text=str(slot.position), style="success" if slot.user_id is None else "primary", callback_data=f"queue:book:{queue.id}:{slot.position}" if slot.user_id is None else None, disabled=DisabledButton() if slot.user_id is not None else None) for slot in slots[index:index + 5]] for index in range(0, len(slots), 5)]
     rows += [[button("Освободить", f"queue:release:{queue.id}", icon=PremiumEmoji.RELEASE_SLOT.value), button("Обновить", f"queue:refresh:{queue.id}", icon=PremiumEmoji.REFRESH_QUEUE.value)], [button("К списку", "qs:list", icon=PremiumEmoji.BACK.value)]]
