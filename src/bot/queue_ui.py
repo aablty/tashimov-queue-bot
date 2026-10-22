@@ -6,6 +6,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from aiogram.types import DisabledButton, InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from src.bot.queue_payloads import QueueSchedulePayload, ScheduleSummary
 from src.bot.utils.emoji import PremiumEmoji
@@ -36,6 +37,13 @@ def summary_period(item: ScheduleSummary) -> str:
     if item.kind == "once" and item.once_date is not None:
         return item.once_date.strftime("%d.%m")
     return weekday_text(item.weekday)
+
+
+def markup(buttons: list[InlineKeyboardButton], *widths: int) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.add(*buttons)
+    builder.adjust(*widths)
+    return builder.as_markup()
 
 
 def setup_text(schedule: QueueSchedulePayload, step: str) -> str:
@@ -83,156 +91,157 @@ def setup_markup(
     summaries: list[ScheduleSummary] | None = None,
 ) -> InlineKeyboardMarkup:
     if step == "main":
-        return InlineKeyboardMarkup(
-            inline_keyboard=[
-                [
-                    InlineKeyboardButton(
-                        text="Новая очередь",
-                        callback_data="qsetup:new",
-                        icon_custom_emoji_id=PremiumEmoji.ADD_QUEUE.value or None,
-                    )
-                ],
+        return markup(
+            [
+                InlineKeyboardButton(
+                    text="Новая очередь",
+                    callback_data="qsetup:new",
+                    icon_custom_emoji_id=PremiumEmoji.ADD_QUEUE.value,
+                ),
                 *[
-                    [
-                        InlineKeyboardButton(
-                            text=f"{item.name[:20]} · {summary_period(item)} {time_text(item.start_minute, item.end_minute)}",
-                            callback_data=f"qsetup:edit:{item.id}",
-                        )
-                    ]
+                    InlineKeyboardButton(
+                        text=f"{item.name[:20]} · {summary_period(item)} {time_text(item.start_minute, item.end_minute)}",
+                        callback_data=f"qsetup:edit:{item.id}",
+                    )
                     for item in summaries or []
                 ],
-            ]
+            ],
+            1,
+        )
+    if step == "review":
+        return markup(
+            [
+                InlineKeyboardButton(
+                    text="Изменить",
+                    callback_data=f"qsetup:editform:{schedule.schedule_id}",
+                ),
+                InlineKeyboardButton(
+                    text="Удалить",
+                    callback_data=f"qsetup:delete:{schedule.schedule_id}",
+                    icon_custom_emoji_id=PremiumEmoji.REMOVE_QUEUE.value,
+                ),
+                InlineKeyboardButton(
+                    text="Назад",
+                    callback_data="qsetup:main",
+                    icon_custom_emoji_id=PremiumEmoji.BACK.value,
+                ),
+            ],
+            1,
         )
     if step == "kind":
-        return InlineKeyboardMarkup(
-            inline_keyboard=[
-                [
-                    InlineKeyboardButton(
-                        text="Разовая", callback_data="qsetup:kind:once"
-                    ),
-                    InlineKeyboardButton(
-                        text="Еженедельная", callback_data="qsetup:kind:weekly"
-                    ),
-                ]
-            ]
+        return markup(
+            [
+                InlineKeyboardButton(text="Разовая", callback_data="qsetup:kind:once"),
+                InlineKeyboardButton(
+                    text="Еженедельная", callback_data="qsetup:kind:weekly"
+                ),
+            ],
+            2,
         )
     if step == "name":
-        return InlineKeyboardMarkup(
-            inline_keyboard=[
-                [
-                    InlineKeyboardButton(
-                        text="Назад",
-                        callback_data="qsetup:back:kind",
-                        icon_custom_emoji_id=PremiumEmoji.BACK.value or None,
-                    )
-                ]
-            ]
+        return markup(
+            [
+                InlineKeyboardButton(
+                    text="Назад",
+                    callback_data="qsetup:back:kind",
+                    icon_custom_emoji_id=PremiumEmoji.BACK.value,
+                )
+            ],
+            1,
         )
     if step == "date":
         now = datetime.now(local_zone()).date()
-        return InlineKeyboardMarkup(
-            inline_keyboard=[
-                [
+        return markup(
+            [
+                *[
                     InlineKeyboardButton(
                         text=now.fromordinal(now.toordinal() + index).strftime("%d.%m"),
                         callback_data=f"qsetup:date:{index}",
                     )
                     for index in range(7)
                 ],
-                [
-                    InlineKeyboardButton(
-                        text="Назад",
-                        callback_data="qsetup:back:name",
-                        icon_custom_emoji_id=PremiumEmoji.BACK.value or None,
-                    )
-                ],
-            ]
+                InlineKeyboardButton(
+                    text="Назад",
+                    callback_data="qsetup:back:name",
+                    icon_custom_emoji_id=PremiumEmoji.BACK.value,
+                ),
+            ],
+            3,
+            1,
         )
     if step == "day":
-        return InlineKeyboardMarkup(
-            inline_keyboard=[
-                [
+        return markup(
+            [
+                *[
                     InlineKeyboardButton(
                         text=label, callback_data=f"qsetup:day:{index}"
                     )
                     for index, label in enumerate(WEEKDAYS)
                 ],
-                [
-                    InlineKeyboardButton(
-                        text="Назад",
-                        callback_data="qsetup:back:name",
-                        icon_custom_emoji_id=PremiumEmoji.BACK.value or None,
-                    )
-                ],
-            ]
+                InlineKeyboardButton(
+                    text="Назад",
+                    callback_data="qsetup:back:name",
+                    icon_custom_emoji_id=PremiumEmoji.BACK.value,
+                ),
+            ],
+            3,
+            1,
         )
     if step == "start":
-        return InlineKeyboardMarkup(
-            inline_keyboard=[
-                [
+        return markup(
+            [
+                *[
                     InlineKeyboardButton(
                         text=f"{hour:02d}:00", callback_data=f"qsetup:start:{hour}"
                     )
-                    for hour in range(12)
+                    for hour in range(24)
                 ],
-                [
-                    InlineKeyboardButton(
-                        text=f"{hour:02d}:00", callback_data=f"qsetup:start:{hour}"
-                    )
-                    for hour in range(12, 24)
-                ],
-                [
-                    InlineKeyboardButton(
-                        text="Назад",
-                        callback_data="qsetup:back:period",
-                        icon_custom_emoji_id=PremiumEmoji.BACK.value or None,
-                    )
-                ],
-            ]
+                InlineKeyboardButton(
+                    text="Назад",
+                    callback_data="qsetup:back:period",
+                    icon_custom_emoji_id=PremiumEmoji.BACK.value,
+                ),
+            ],
+            3,
+            1,
         )
     if step == "end":
         first = (schedule.start_minute or 0) // 60 + 1
-        return InlineKeyboardMarkup(
-            inline_keyboard=[
-                [
+        return markup(
+            [
+                *[
                     InlineKeyboardButton(
                         text=f"{hour:02d}:00", callback_data=f"qsetup:end:{hour}"
                     )
-                    for hour in range(first, 12)
+                    for hour in range(first, 24)
                 ],
-                [
-                    InlineKeyboardButton(
-                        text=f"{hour:02d}:00", callback_data=f"qsetup:end:{hour}"
-                    )
-                    for hour in range(max(12, first), 24)
-                ],
-                [
-                    InlineKeyboardButton(
-                        text="Назад",
-                        callback_data="qsetup:back:start",
-                        icon_custom_emoji_id=PremiumEmoji.BACK.value or None,
-                    )
-                ],
-            ]
+                InlineKeyboardButton(
+                    text="Назад",
+                    callback_data="qsetup:back:start",
+                    icon_custom_emoji_id=PremiumEmoji.BACK.value,
+                ),
+            ],
+            3,
+            1,
         )
     values = [1, 5, 10, 15, 20, 25, 50, config.QUEUE_MAX_SLOTS]
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
+    return markup(
+        [
+            *[
                 InlineKeyboardButton(
                     text=str(value), callback_data=f"qsetup:capacity:{value}"
                 )
                 for value in dict.fromkeys(values)
                 if value <= config.QUEUE_MAX_SLOTS
             ],
-            [
-                InlineKeyboardButton(
-                    text="Назад",
-                    callback_data="qsetup:back:end",
-                    icon_custom_emoji_id=PremiumEmoji.BACK.value or None,
-                )
-            ],
-        ]
+            InlineKeyboardButton(
+                text="Назад",
+                callback_data="qsetup:back:end",
+                icon_custom_emoji_id=PremiumEmoji.BACK.value,
+            ),
+        ],
+        8,
+        1,
     )
 
 
@@ -259,44 +268,44 @@ def queue_markup(queue: Any) -> InlineKeyboardMarkup:
 
     ends_at = getattr(queue, "ends_at", None)
     if ends_at is not None and queue_grace_deadline(ends_at) <= datetime.now(UTC):
-        return InlineKeyboardMarkup(inline_keyboard=[])
+        return markup([])
     slots = sorted(queue.slots, key=lambda item: item.position)
-    rows = [
-        [
-            InlineKeyboardButton(
-                text=str(slot.position),
-                style="success" if slot.user_id is None else "primary",
-                callback_data=f"queue:book:{queue.id}:{slot.position}"
-                if slot.user_id is None
-                else None,
-                disabled=DisabledButton() if slot.user_id is not None else None,
-            )
-            for slot in slots[index : index + 5]
-        ]
-        for index in range(0, len(slots), 5)
+    slot_buttons = [
+        InlineKeyboardButton(
+            text=str(slot.position),
+            style="success" if slot.user_id is None else "primary",
+            callback_data=f"queue:book:{queue.id}:{slot.position}"
+            if slot.user_id is None
+            else None,
+            disabled=DisabledButton() if slot.user_id is not None else None,
+        )
+        for slot in slots
     ]
-    rows += [
-        [
-            InlineKeyboardButton(
-                text="Освободить",
-                callback_data=f"queue:release:{queue.id}",
-                icon_custom_emoji_id=PremiumEmoji.RELEASE_SLOT.value or None,
-            ),
-            InlineKeyboardButton(
-                text="Обновить",
-                callback_data=f"queue:refresh:{queue.id}",
-                icon_custom_emoji_id=PremiumEmoji.REFRESH_QUEUE.value or None,
-            ),
-        ],
-        [
-            InlineKeyboardButton(
-                text="К списку",
-                callback_data="qs:list",
-                icon_custom_emoji_id=PremiumEmoji.BACK.value or None,
-            )
-        ],
+    action_buttons = [
+        InlineKeyboardButton(
+            text="Освободить",
+            callback_data=f"queue:release:{queue.id}",
+            icon_custom_emoji_id=PremiumEmoji.RELEASE_SLOT.value,
+        ),
+        InlineKeyboardButton(
+            text="Обновить",
+            callback_data=f"queue:refresh:{queue.id}",
+            icon_custom_emoji_id=PremiumEmoji.REFRESH_QUEUE.value,
+        ),
+        InlineKeyboardButton(
+            text="К списку",
+            callback_data="qs:list",
+            icon_custom_emoji_id=PremiumEmoji.BACK.value,
+        ),
     ]
-    return InlineKeyboardMarkup(inline_keyboard=rows)
+    slot_builder = InlineKeyboardBuilder()
+    slot_builder.add(*slot_buttons)
+    slot_builder.adjust(5)
+    action_builder = InlineKeyboardBuilder()
+    action_builder.add(*action_buttons)
+    action_builder.adjust(2, 1)
+    slot_builder.attach(action_builder)
+    return slot_builder.as_markup()
 
 
 def render_queue_list(queues: list[Any]) -> str:
@@ -308,15 +317,14 @@ def render_queue_list(queues: list[Any]) -> str:
 
 
 def list_markup(queues: list[Any]) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(
-                    text=f"{queue.name[:24]} · {weekday_text(queue.starts_at.astimezone(local_zone()).weekday())} {queue.starts_at.astimezone(local_zone()):%H:%M}",
-                    callback_data=f"qs:open:{queue.id}",
-                )
-            ]
+    return markup(
+        [
+            InlineKeyboardButton(
+                text=f"{queue.name[:24]} · {weekday_text(queue.starts_at.astimezone(local_zone()).weekday())} {queue.starts_at.astimezone(local_zone()):%H:%M}",
+                callback_data=f"qs:open:{queue.id}",
+            )
             for queue in queues
             if queue.starts_at
-        ]
+        ],
+        1,
     )
