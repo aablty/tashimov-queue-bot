@@ -15,6 +15,8 @@ class Config(BaseSettings):
     BOT_TOKEN: SecretStr
     TEACHER_ID: int
     QUEUE_MAX_SLOTS: int = 100
+    QUEUE_DEFAULT_SLOTS: int = 25
+    QUEUE_TIMEZONE: str = "Asia/Qyzylorda"
 
     PGHOST: str
     PGDATABASE: str

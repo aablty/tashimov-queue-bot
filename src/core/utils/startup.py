@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import sys
 from collections.abc import AsyncGenerator
@@ -11,6 +12,7 @@ from tortoise import Tortoise
 from src import api
 from src.bot import bot, dp, handlers
 from src.bot.middleware import TelegramResilienceMiddleware
+from src.db.lifecycle import lifecycle_loop
 
 from ..config import config
 
@@ -39,8 +41,8 @@ async def setup_bot() -> None:
     dp.update.outer_middleware(TelegramResilienceMiddleware())
     await bot.set_my_commands(
         [
-            BotCommand(command="q", description="Очередь: показать или создать"),
-            BotCommand(command="queue", description="То же, полная команда"),
+            BotCommand(command="q", description="Настроить очереди (преподаватель)"),
+            BotCommand(command="qs", description="Показать очереди группы"),
         ],
         scope=BotCommandScopeDefault(),
     )
@@ -61,8 +63,11 @@ async def lifespan(_: FastAPI) -> AsyncGenerator:
     except Exception:
         await Tortoise.close_connections()
         raise
+    lifecycle_task = asyncio.create_task(lifecycle_loop())
     try:
         yield
     finally:
+        lifecycle_task.cancel()
+        await asyncio.gather(lifecycle_task, return_exceptions=True)
         await bot.session.close()
         await Tortoise.close_connections()

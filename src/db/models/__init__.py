@@ -1,6 +1,15 @@
-from .queue import Queue, QueueSlot
+from .queue import (
+    Queue,
+    QueueSchedule,
+    QueueScheduleInterval,
+    QueueSetupDraft,
+    QueueSlot,
+)
 
 __all__ = [
     "Queue",
+    "QueueSchedule",
+    "QueueScheduleInterval",
+    "QueueSetupDraft",
     "QueueSlot",
 ]
