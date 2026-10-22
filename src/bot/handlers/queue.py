@@ -241,6 +241,12 @@ async def queue_command(message: Message, command: CommandObject) -> None:
     await start_setup(message)
 
 
+@router.message(Command("qs"), GroupOnly())
+async def queues_command(message: Message) -> None:
+    queues = await repository.list_queues(message.chat.id)
+    await message.answer(render_queue_list(queues), reply_markup=list_markup(queues))
+
+
 @router.message(F.text, GroupOnly(), TeacherOnly(config.teacher_ids))
 async def setup_name(message: Message) -> None:
     draft = await repository.get_draft(message.chat.id)
@@ -490,12 +496,6 @@ async def stale(callback: CallbackQuery) -> None:
             "<b>Очередь завершена или удалена.</b>",
             empty_markup(),
         )
-
-
-@router.message(Command("qs"), GroupOnly())
-async def queues_command(message: Message) -> None:
-    queues = await repository.list_queues(message.chat.id)
-    await message.answer(render_queue_list(queues), reply_markup=list_markup(queues))
 
 
 @router.callback_query(F.data.startswith("qs:"), GroupOnly())
