@@ -299,7 +299,7 @@ def render_queue(queue: Any, *, closed: bool = False) -> str:
     slots = sorted(queue.slots, key=lambda slot: slot.position)
     occupied = [slot for slot in slots if slot.user_id is not None]
     starts_at = getattr(queue, "starts_at", None)
-    when = starts_at.astimezone(local_zone()).strftime("%d.%m %H:%M") if starts_at else ""
+    when = starts_at.astimezone(local_zone()).strftime("%H:%M") if starts_at else ""
     state = "закрыта" if closed else "активна"
     lines = [f"<b>{escape(getattr(queue, 'name', 'Очередь'))}</b> · {state} · {when}", f"Занято: {len(occupied)}/{queue.capacity}", ""]
     lines.extend(f'{index}. <a href="tg://user?id={slot.user_id}">{escape(slot.user_name or str(slot.user_id))}</a>' for index, slot in enumerate(occupied, 1))
@@ -322,7 +322,7 @@ def list_markup(queues: list[Queue]) -> InlineKeyboardMarkup:
         inline_keyboard=[
             [
                 button(
-                    f"{queue.name[:24]} · {WEEKDAYS[queue.starts_at.astimezone(local_zone()).weekday()]} {queue.starts_at.astimezone(local_zone()):%d.%m %H:%M}",
+                    f"{queue.name[:24]} · {WEEKDAYS[queue.starts_at.astimezone(local_zone()).weekday()]} {queue.starts_at.astimezone(local_zone()):%H:%M}",
                     f"qs:open:{queue.id}",
                 )
             ]
