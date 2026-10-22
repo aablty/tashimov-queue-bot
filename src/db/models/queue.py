@@ -8,7 +8,10 @@ class QueueSchedule(models.Model):
     name = fields.CharField(max_length=255)
     kind = fields.CharField(max_length=16)
     once_date = fields.DateField(null=True)
-    weekdays = fields.JSONField(default=list)
+    weekday = fields.IntField(null=True)
+    start_minute = fields.IntField()
+    end_minute = fields.IntField()
+    capacity = fields.IntField()
     timezone = fields.CharField(max_length=64)
     enabled = fields.BooleanField(default=True)
     created_at = fields.DatetimeField(auto_now_add=True)
@@ -16,23 +19,6 @@ class QueueSchedule(models.Model):
 
     class Meta:
         table = "queue_schedules"
-
-
-class QueueScheduleInterval(models.Model):
-    id = fields.BigIntField(pk=True)
-    schedule = fields.ForeignKeyField(
-        "models.QueueSchedule", related_name="intervals", on_delete=fields.CASCADE
-    )
-    position = fields.IntField()
-    weekday = fields.IntField(null=True)
-    start_minute = fields.IntField()
-    end_minute = fields.IntField()
-    step_minutes = fields.IntField(default=60)
-    capacity = fields.IntField()
-
-    class Meta:
-        table = "queue_schedule_intervals"
-        unique_together = (("schedule", "position"),)
 
 
 class Queue(models.Model):

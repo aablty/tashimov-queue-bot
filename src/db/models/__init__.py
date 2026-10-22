@@ -1,7 +1,6 @@
 from .queue import (
     Queue,
     QueueSchedule,
-    QueueScheduleInterval,
     QueueSetupDraft,
     QueueSlot,
 )
@@ -9,7 +8,6 @@ from .queue import (
 __all__ = [
     "Queue",
     "QueueSchedule",
-    "QueueScheduleInterval",
     "QueueSetupDraft",
     "QueueSlot",
 ]
