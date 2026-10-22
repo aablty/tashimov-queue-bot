@@ -253,7 +253,7 @@ def setup_markup(
             ],
             *widths,
         )
-    values = [1, 5, 10, 15, 20, 25, 50, config.QUEUE_MAX_SLOTS]
+    values = [15, 25, 50, config.QUEUE_MAX_SLOTS]
     return markup(
         [
             *[
@@ -270,7 +270,7 @@ def setup_markup(
             ),
             cancel_setup_button(),
         ],
-        8,
+        4,
         2,
     )
 
