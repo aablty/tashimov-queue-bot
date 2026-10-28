@@ -27,7 +27,7 @@ def minimum_start_minute(target_date: date) -> int:
     now = datetime.now(local_zone())
     if target_date != now.date():
         return 0
-    return (now.hour + 1) * 60
+    return now.hour * 60 if now.minute == 0 else (now.hour + 1) * 60
 
 
 def default_time_range(target_date: date) -> tuple[int, int]:

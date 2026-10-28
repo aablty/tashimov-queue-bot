@@ -158,6 +158,9 @@ class QueueRepository:
             )
             if queue_grace_deadline(expires_at) <= now_utc():
                 await schedule.delete()
+        await Queue.filter(
+            ends_at__lte=now_utc() - timedelta(minutes=config.QUEUE_GRACE_MINUTES)
+        ).delete()
 
     async def sync_schedule(self, schedule_id: int) -> None:
         schedule = await self.get_schedule(schedule_id)

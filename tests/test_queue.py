@@ -1,11 +1,27 @@
 import unittest
+from datetime import date, datetime
 from types import SimpleNamespace
+from unittest.mock import patch
+from zoneinfo import ZoneInfo
 
 from src.bot.keyboards.queue import queue_markup
+from src.bot.utils.queue import minimum_start_minute
 from src.bot.views.queue import render_queue
 
 
 class QueueRenderingTests(unittest.TestCase):
+    def test_exact_hour_is_allowed_for_one_time_queue(self) -> None:
+        current = datetime(2026, 10, 29, 22, 0, tzinfo=ZoneInfo("Asia/Qyzylorda"))
+        with patch("src.bot.utils.queue.datetime") as datetime_mock:
+            datetime_mock.now.return_value = current
+            self.assertEqual(minimum_start_minute(date(2026, 10, 29)), 22 * 60)
+
+    def test_started_hour_is_rounded_to_the_next_hour(self) -> None:
+        current = datetime(2026, 10, 29, 22, 1, tzinfo=ZoneInfo("Asia/Qyzylorda"))
+        with patch("src.bot.utils.queue.datetime") as datetime_mock:
+            datetime_mock.now.return_value = current
+            self.assertEqual(minimum_start_minute(date(2026, 10, 29)), 23 * 60)
+
     def test_render_shows_capacity_and_occupants(self) -> None:
         queue = SimpleNamespace(
             status="active",
