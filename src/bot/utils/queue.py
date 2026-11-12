@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -34,6 +34,19 @@ def default_time_range(target_date: date) -> tuple[int, int]:
     start = max(9 * 60, minimum_start_minute(target_date))
     start = min(start, 23 * 60)
     return start, min(start + 60, 23 * 60 + 59)
+
+
+def is_booking_open(
+    starts_at: datetime | None,
+    ends_at: datetime | None,
+    *,
+    now: datetime | None = None,
+) -> bool:
+    """Return whether a queue accepts reservations at the given moment."""
+    if starts_at is None or ends_at is None:
+        return False
+    current = now or datetime.now(UTC)
+    return starts_at - timedelta(minutes=10) <= current < ends_at
 
 
 def weekday_text(value: int | None) -> str:

@@ -37,6 +37,7 @@ from src.db.queue import (
     NotReservedError,
     QueueClosedError,
     QueueError,
+    QueueNotOpenError,
     QueueRepository,
     SlotUnavailableError,
 )
@@ -496,6 +497,13 @@ async def book_slot(callback: CallbackQuery) -> None:
         return
     except SlotUnavailableError:
         await safe_callback_answer(callback, "Слот уже занят.", show_alert=True)
+        return
+    except QueueNotOpenError:
+        await safe_callback_answer(
+            callback,
+            "\u0411\u0440\u043e\u043d\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435 \u043e\u0442\u043a\u0440\u043e\u0435\u0442\u0441\u044f \u0437\u0430 10 \u043c\u0438\u043d\u0443\u0442 \u0434\u043e \u043d\u0430\u0447\u0430\u043b\u0430.",
+            show_alert=True,
+        )
         return
     except (QueueClosedError, QueueError, ValueError):
         await stale(callback)

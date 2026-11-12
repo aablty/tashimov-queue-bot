@@ -10,6 +10,7 @@ from src.bot.schemas.queue import QueueSchedulePayload, ScheduleSummary
 from src.bot.utils.emoji import PremiumEmoji
 from src.bot.utils.queue import (
     WEEKDAYS,
+    is_booking_open,
     local_zone,
     minimum_start_minute,
     queue_sort_key,
@@ -333,15 +334,22 @@ def queue_markup(queue: Any) -> InlineKeyboardMarkup:
     ends_at = getattr(queue, "ends_at", None)
     if ends_at is not None and queue_grace_deadline(ends_at) <= datetime.now(UTC):
         return markup([])
+    booking_open = is_booking_open(getattr(queue, "starts_at", None), ends_at)
     slots = sorted(queue.slots, key=lambda item: item.position)
     slot_buttons = [
         InlineKeyboardButton(
             text=str(slot.position),
-            style="success" if slot.user_id is None else "primary",
-            callback_data=f"queue:book:{queue.id}:{slot.position}"
-            if slot.user_id is None
-            else None,
-            disabled=DisabledButton() if slot.user_id is not None else None,
+            style="success" if slot.user_id is None and booking_open else "primary",
+            callback_data=(
+                f"queue:book:{queue.id}:{slot.position}"
+                if slot.user_id is None and booking_open
+                else None
+            ),
+            disabled=(
+                DisabledButton()
+                if slot.user_id is not None or not booking_open
+                else None
+            ),
         )
         for slot in slots
     ]

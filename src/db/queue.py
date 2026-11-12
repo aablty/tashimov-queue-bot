@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 from tortoise.exceptions import IntegrityError
 from tortoise.transactions import in_transaction
 
+from src.bot.utils.queue import is_booking_open
 from src.core.config import config
 
 from .models import Queue, QueueSchedule, QueueSetupDraft, QueueSlot
@@ -17,6 +18,10 @@ class QueueError(Exception):
 
 
 class QueueClosedError(QueueError):
+    pass
+
+
+class QueueNotOpenError(QueueError):
     pass
 
 
@@ -262,10 +267,14 @@ class QueueRepository:
     ) -> QueueSlot:
         async with in_transaction() as connection:
             queue = await Queue.filter(id=queue_id).using_db(connection).first()
-            if queue is None or (
-                queue.ends_at is not None
-                and queue_grace_deadline(queue.ends_at) <= now_utc()
-            ):
+            now = now_utc()
+            if queue is None:
+                raise QueueClosedError
+            if queue.ends_at is not None and queue_grace_deadline(queue.ends_at) <= now:
+                raise QueueClosedError
+            if not is_booking_open(queue.starts_at, queue.ends_at, now=now):
+                if queue.starts_at is not None and now < queue.starts_at:
+                    raise QueueNotOpenError
                 raise QueueClosedError
             existing = (
                 await QueueSlot.filter(queue_id=queue_id, user_id=user_id)

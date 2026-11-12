@@ -1,15 +1,48 @@
 import unittest
-from datetime import date, datetime
+from datetime import UTC, date, datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
 from src.bot.keyboards.queue import queue_markup
-from src.bot.utils.queue import minimum_start_minute
+from src.bot.utils.queue import is_booking_open, minimum_start_minute
 from src.bot.views.queue import render_queue
 
 
 class QueueRenderingTests(unittest.TestCase):
+    def test_booking_opens_ten_minutes_before_queue(self) -> None:
+        starts_at = datetime(2026, 10, 29, 12, 0, tzinfo=ZoneInfo("Asia/Qyzylorda"))
+        ends_at = datetime(2026, 10, 29, 13, 0, tzinfo=ZoneInfo("Asia/Qyzylorda"))
+
+        self.assertFalse(
+            is_booking_open(
+                starts_at,
+                ends_at,
+                now=datetime(2026, 10, 29, 11, 49, tzinfo=starts_at.tzinfo),
+            )
+        )
+        self.assertTrue(
+            is_booking_open(
+                starts_at,
+                ends_at,
+                now=datetime(2026, 10, 29, 11, 50, tzinfo=starts_at.tzinfo),
+            )
+        )
+        self.assertTrue(
+            is_booking_open(
+                starts_at,
+                ends_at,
+                now=datetime(2026, 10, 29, 12, 59, tzinfo=starts_at.tzinfo),
+            )
+        )
+        self.assertFalse(
+            is_booking_open(
+                starts_at,
+                ends_at,
+                now=datetime(2026, 10, 29, 13, 0, tzinfo=starts_at.tzinfo),
+            )
+        )
+
     def test_exact_hour_is_allowed_for_one_time_queue(self) -> None:
         current = datetime(2026, 10, 29, 22, 0, tzinfo=ZoneInfo("Asia/Qyzylorda"))
         with patch("src.bot.utils.queue.datetime") as datetime_mock:
@@ -49,9 +82,12 @@ class QueueRenderingTests(unittest.TestCase):
         self.assertIn("закрыта", render_queue(queue, closed=True))
 
     def test_markup_uses_compact_numeric_grid(self) -> None:
+        now = datetime.now(UTC)
         queue = SimpleNamespace(
             id=7,
             status="active",
+            starts_at=now - timedelta(minutes=1),
+            ends_at=now + timedelta(hours=1),
             slots=[
                 SimpleNamespace(position=position, user_id=None)
                 for position in range(1, 11)
@@ -65,9 +101,12 @@ class QueueRenderingTests(unittest.TestCase):
         self.assertEqual(markup.inline_keyboard[1][-1].text, "10")
 
     def test_markup_keeps_occupied_numbers_and_marks_them(self) -> None:
+        now = datetime.now(UTC)
         queue = SimpleNamespace(
             id=7,
             status="active",
+            starts_at=now - timedelta(minutes=1),
+            ends_at=now + timedelta(hours=1),
             slots=[
                 SimpleNamespace(position=1, user_id=42),
                 SimpleNamespace(position=2, user_id=None),
@@ -83,6 +122,22 @@ class QueueRenderingTests(unittest.TestCase):
         self.assertEqual(free.text, "2")
         self.assertEqual(free.style, "success")
         self.assertIsNone(free.disabled)
+
+    def test_markup_disables_free_slots_before_booking_window(self) -> None:
+        now = datetime.now(UTC)
+        queue = SimpleNamespace(
+            id=7,
+            status="active",
+            starts_at=now + timedelta(minutes=11),
+            ends_at=now + timedelta(hours=1, minutes=11),
+            slots=[SimpleNamespace(position=1, user_id=None)],
+        )
+
+        button = queue_markup(queue).inline_keyboard[0][0]
+
+        self.assertEqual(button.style, "primary")
+        self.assertIsNone(button.callback_data)
+        self.assertIsNotNone(button.disabled)
 
 
 if __name__ == "__main__":
