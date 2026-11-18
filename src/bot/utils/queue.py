@@ -30,6 +30,18 @@ def minimum_start_minute(target_date: date) -> int:
     return now.hour * 60 if now.minute == 0 else (now.hour + 1) * 60
 
 
+def minimum_start_minute_floor(target_date: date) -> int:
+    """Like minimum_start_minute, but floors to the current hour.
+
+    Used when lowering an already-set start time: minutes are ignored so
+    1:42 only blocks going below 1:00, not below 2:00.
+    """
+    now = datetime.now(local_zone())
+    if target_date != now.date():
+        return 0
+    return now.hour * 60
+
+
 def default_time_range(target_date: date) -> tuple[int, int]:
     start = max(9 * 60, minimum_start_minute(target_date))
     start = min(start, 23 * 60)

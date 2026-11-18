@@ -12,7 +12,7 @@ from src.bot.utils.queue import (
     WEEKDAYS,
     is_booking_open,
     local_zone,
-    minimum_start_minute,
+    minimum_start_minute_floor,
     queue_sort_key,
     summary_period,
     summary_sort_key,
@@ -227,7 +227,7 @@ def setup_markup(
         start = schedule.start_minute if schedule.start_minute is not None else 9 * 60
         end = schedule.end_minute if schedule.end_minute is not None else start + 60
         minimum_start = (
-            minimum_start_minute(schedule.once_date)
+            minimum_start_minute_floor(schedule.once_date)
             if schedule.once_date is not None
             else 0
         )

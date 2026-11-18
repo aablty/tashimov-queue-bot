@@ -24,6 +24,7 @@ from src.bot.utils.queue import (
     default_time_range,
     local_zone,
     minimum_start_minute,
+    minimum_start_minute_floor,
 )
 from src.bot.utils.telegram import (
     safe_callback_answer,
@@ -340,7 +341,7 @@ async def setup_callback(callback: CallbackQuery) -> None:
             if side == "start":
                 candidate = start_minute + (60 if direction == "up" else -60)
                 minimum_start = (
-                    minimum_start_minute(schedule.once_date)
+                    minimum_start_minute_floor(schedule.once_date)
                     if schedule.once_date is not None
                     else 0
                 )
