@@ -2,14 +2,21 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
 from html import escape
 from typing import Any
 
 from src.bot.schemas.queue import QueueSchedulePayload
-from src.bot.utils.queue import local_zone, time_text, weekday_text
+from src.bot.utils.emoji import PremiumEmoji
+from src.bot.utils.queue import is_booking_open, local_zone, time_text, weekday_text
 
 
-def setup_text(schedule: QueueSchedulePayload, step: str) -> str:
+def setup_text(
+    schedule: QueueSchedulePayload,
+    step: str,
+    *,
+    pending_delete_bookings: int | None = None,
+) -> str:
     if step == "main":
         return "<b>Расписания группы</b>\n\nВыберите очередь для редактирования или создайте новую."
     if step == "review":
@@ -36,6 +43,13 @@ def setup_text(schedule: QueueSchedulePayload, step: str) -> str:
             f"Период: {period}\nВремя: {time_text(schedule.start_minute, schedule.end_minute)}\n"
             f"Мест: {schedule.capacity}\n\nВыберите поле для изменения:"
         )
+    if step == "delete_confirm":
+        warning = (
+            f"\n\n⚠️ У этой очереди есть {pending_delete_bookings} занятых мест — они пропадут."
+            if pending_delete_bookings
+            else "\n\nЗаписей нет, можно удалить без потерь."
+        )
+        return f"<b>Удалить «{escape(schedule.name or 'Очередь')}»?</b>{warning}"
     kind = "разовая" if schedule.kind == "once" else "еженедельная"
     period = (
         schedule.once_date.strftime("%d.%m.%Y")
@@ -48,8 +62,6 @@ def setup_text(schedule: QueueSchedulePayload, step: str) -> str:
         "date": "Выберите дату:",
         "day": "Выберите день недели:",
         "time": "Настройте временной диапазон:",
-        "start": "Выберите начало:",
-        "end": "Выберите конец:",
         "capacity": "Выберите количество мест:",
     }.get(step, "Настройка очереди")
     return (
@@ -61,17 +73,39 @@ def setup_text(schedule: QueueSchedulePayload, step: str) -> str:
     )
 
 
-def render_queue(queue: Any, *, closed: bool = False) -> str:
+def _booking_tip(queue: Any, *, closed: bool, occupied: int) -> str | None:
+    starts_at = getattr(queue, "starts_at", None)
+    ends_at = getattr(queue, "ends_at", None)
+    if closed or starts_at is None or ends_at is None:
+        return None
+    from src.db.queue import now_utc
+
+    now = now_utc()
+    opens_at = starts_at - timedelta(minutes=10)
+    if now < opens_at:
+        return f"{PremiumEmoji.LAMP.html} Откроется в {opens_at.astimezone(local_zone()):%H:%M} (за 10 минут до начала)."
+    if is_booking_open(starts_at, ends_at, now=now) and occupied >= queue.capacity:
+        return f"{PremiumEmoji.LAMP.html} Мест нет — загляните позже, вдруг кто-то освободит слот."
+    return None
+
+
+def render_queue(queue: Any, *, closed: bool | None = None) -> str:
+    from src.db.queue import now_utc, queue_grace_deadline
+
     slots = sorted(queue.slots, key=lambda slot: slot.position)
     occupied = [slot for slot in slots if slot.user_id is not None]
     starts_at = getattr(queue, "starts_at", None)
+    ends_at = getattr(queue, "ends_at", None)
+    if closed is None:
+        closed = ends_at is not None and queue_grace_deadline(ends_at) <= now_utc()
     when = starts_at.astimezone(local_zone()).strftime("%H:%M") if starts_at else ""
-    state = "закрыта" if closed else "активна"
     lines = [
-        f"<b>{escape(getattr(queue, 'name', 'Очередь'))}</b> · {state} · {when}",
-        f"Занято: {len(occupied)}/{queue.capacity}",
-        "",
+        f"<b>{escape(getattr(queue, 'name', 'Очередь'))}</b> · {when} — занято: {len(occupied)}/{queue.capacity}",
     ]
+    tip = _booking_tip(queue, closed=closed, occupied=len(occupied))
+    if tip:
+        lines.append(tip)
+    lines.append("")
     lines.extend(
         f'{index}. <a href="tg://user?id={slot.user_id}">{escape(slot.user_name or str(slot.user_id))}</a>'
         for index, slot in enumerate(occupied, 1)

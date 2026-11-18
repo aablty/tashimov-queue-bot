@@ -1,4 +1,5 @@
 from enum import Enum
+from typing import cast
 
 
 class PremiumEmoji(str, Enum):
@@ -16,3 +17,32 @@ class PremiumEmoji(str, Enum):
     CROSSMARK = "5390977215464778771"
     CHECKMARK_FILLED = "5391006970998204339"
     CROSSMARK_FILLED = "5391206901725833275"
+    LAMP = "5471900562599490080"
+
+    @property
+    def html(self) -> str:
+        """Return this premium emoji as Telegram HTML markup."""
+        fallback = EMOJI_FALLBACKS[self.name]
+        emoji_id = cast(str, self.value)
+        if not emoji_id:
+            return fallback
+        return f'<tg-emoji emoji-id="{emoji_id}">{fallback}</tg-emoji>'
+
+
+EMOJI_FALLBACKS = {
+    "PLUS": "➕",
+    "BRUSH": "✒️",
+    "TRASH": "🗑️",
+    "TAG_CROSS": "✖️",
+    "DOT": "💠",
+    "CALENDAR": "📆",
+    "ARROW_LEFT": "🔙",
+    "ERASER": "🧹",
+    "REFRESH": "🔄️",
+    "SAVE": "💾",
+    "CHECKMARK": "✔️",
+    "CROSSMARK": "❌",
+    "CHECKMARK_FILLED": "✔️",
+    "CROSSMARK_FILLED": "❌",
+    "LAMP": "💡",
+}

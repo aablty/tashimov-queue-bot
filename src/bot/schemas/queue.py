@@ -49,3 +49,4 @@ class QueueDraftPayload(BaseModel):
 
     schedule: QueueSchedulePayload = Field(default_factory=QueueSchedulePayload)
     schedules: list[ScheduleSummary] = Field(default_factory=list)
+    pending_delete_bookings: int | None = None

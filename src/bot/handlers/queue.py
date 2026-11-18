@@ -9,7 +9,12 @@ from aiogram.types import CallbackQuery, Message
 
 from src.bot import bot
 from src.bot.filters import GroupOnly, TeacherOnly
-from src.bot.keyboards.queue import list_markup, queue_markup, setup_markup
+from src.bot.keyboards.queue import (
+    list_markup,
+    queue_markup,
+    saved_markup,
+    setup_markup,
+)
 from src.bot.schemas.queue import (
     QueueDraftPayload,
     QueueSchedulePayload,
@@ -77,9 +82,8 @@ def ensure_time_defaults(schedule: QueueSchedulePayload) -> None:
         datetime.now(local_zone()).date() + timedelta(days=1)
     )
     default_start, default_end = default_time_range(target_date)
-    if (
-        schedule.start_minute is None
-        or schedule.start_minute < minimum_start_minute(target_date)
+    if schedule.start_minute is None or schedule.start_minute < minimum_start_minute(
+        target_date
     ):
         schedule.start_minute = default_start
     if schedule.end_minute is None or schedule.end_minute <= schedule.start_minute:
@@ -95,7 +99,11 @@ async def edit_setup(draft: Any) -> None:
         bot,
         draft.chat_id,
         draft.message_id,
-        setup_text(payload.schedule, draft.step),
+        setup_text(
+            payload.schedule,
+            draft.step,
+            pending_delete_bookings=payload.pending_delete_bookings,
+        ),
         setup_markup(payload.schedule, draft.step, payload.schedules),
     )
 
@@ -245,6 +253,13 @@ async def setup_callback(callback: CallbackQuery) -> None:
         await repository.save_draft(
             draft, step=target, payload=payload.model_dump(mode="json")
         )
+    elif action == "deleteask":
+        payload.pending_delete_bookings = await repository.count_active_bookings(
+            int(parts[2])
+        )
+        await repository.save_draft(
+            draft, step="delete_confirm", payload=payload.model_dump(mode="json")
+        )
     elif action == "delete":
         await repository.delete_schedule(int(parts[2]))
         schedules = await repository.list_schedules(draft.chat_id)
@@ -259,6 +274,9 @@ async def setup_callback(callback: CallbackQuery) -> None:
         await repository.save_draft(
             draft, step="main", payload=payload.model_dump(mode="json")
         )
+        await safe_callback_answer(callback, "Удалено.")
+        await edit_setup(draft)
+        return
     elif action == "kind":
         new_kind = cast(Literal["once", "weekly"], parts[2])
         if new_kind != schedule.kind:
@@ -291,9 +309,7 @@ async def setup_callback(callback: CallbackQuery) -> None:
             offset = -1 if direction == "prev" else 1
             candidate = current.fromordinal(current.toordinal() + offset)
             if candidate < today:
-                await safe_callback_answer(
-                    callback, "Нельзя выбрать прошедшую дату."
-                )
+                await safe_callback_answer(callback, "Нельзя выбрать прошедшую дату.")
                 return
             schedule.once_date = candidate
             await repository.save_draft(
@@ -305,20 +321,6 @@ async def setup_callback(callback: CallbackQuery) -> None:
     elif action == "day":
         schedule.weekday = int(parts[2])
         ensure_time_defaults(schedule)
-        next_step = "edit" if schedule.schedule_id is not None else "time"
-        await repository.save_draft(
-            draft, step=next_step, payload=payload.model_dump(mode="json")
-        )
-    elif action == "start":
-        schedule.start_minute = int(parts[2]) * 60
-        ensure_time_defaults(schedule)
-        await repository.save_draft(
-            draft,
-            step="time",
-            payload=payload.model_dump(mode="json"),
-        )
-    elif action == "end":
-        schedule.end_minute = int(parts[2]) * 60
         next_step = "edit" if schedule.schedule_id is not None else "time"
         await repository.save_draft(
             draft, step=next_step, payload=payload.model_dump(mode="json")
@@ -389,43 +391,18 @@ async def setup_callback(callback: CallbackQuery) -> None:
             bot,
             callback.message.chat.id,
             callback.message.message_id,
-            "<b>Очередь сохранена.</b>\n\nОткрыть очереди: /qs",
-            None,
+            "<b>Очередь сохранена.</b>",
+            saved_markup(),
         )
         return
     elif action == "capacity":
         schedule.capacity = min(int(parts[2]), config.QUEUE_MAX_SLOTS)
-        if schedule.schedule_id is not None:
-            await repository.save_draft(
-                draft, step="edit", payload=payload.model_dump(mode="json")
-            )
-            await safe_callback_answer(callback)
-            await edit_setup(draft)
-            return
-        if not schedule.is_complete():
-            await safe_callback_answer(
-                callback, "Заполните все поля очереди.", show_alert=True
-            )
-            return
-        values = schedule.model_dump(exclude={"schedule_id"})
-        if schedule.schedule_id is None:
-            await repository.create_schedule(
-                chat_id=draft.chat_id,
-                teacher_id=draft.teacher_id,
-                timezone=config.QUEUE_TIMEZONE,
-                **values,
-            )
-        else:
-            await repository.update_schedule(schedule.schedule_id, **values)
-        await draft.delete()
-        await safe_callback_answer(callback, "Сохранено.")
-        await safe_edit_text_by_id(
-            bot,
-            callback.message.chat.id,
-            callback.message.message_id,
-            "<b>Очередь сохранена.</b>\n\nОткрыть очереди: /qs",
-            None,
+        next_step = "edit" if schedule.schedule_id is not None else "review"
+        await repository.save_draft(
+            draft, step=next_step, payload=payload.model_dump(mode="json")
         )
+        await safe_callback_answer(callback)
+        await edit_setup(draft)
         return
     await safe_callback_answer(
         callback,

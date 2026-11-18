@@ -62,25 +62,47 @@ def setup_markup(
             1,
         )
     if step == "review":
+        buttons = [
+            InlineKeyboardButton(
+                text="Изменить",
+                callback_data=(
+                    f"qsetup:editform:{schedule.schedule_id}"
+                    if edit_menu
+                    else "qsetup:editmenu"
+                ),
+                icon_custom_emoji_id=PremiumEmoji.BRUSH.value,
+            ),
+            InlineKeyboardButton(
+                text="Сохранить",
+                callback_data="qsetup:save",
+                icon_custom_emoji_id=PremiumEmoji.SAVE.value,
+            ),
+        ]
+        if edit_menu:
+            buttons.append(
+                InlineKeyboardButton(
+                    text="Удалить",
+                    callback_data=f"qsetup:deleteask:{schedule.schedule_id}",
+                    icon_custom_emoji_id=PremiumEmoji.TRASH.value,
+                )
+            )
+        buttons.append(cancel_setup_button())
+        return markup(buttons, 2, 2 if edit_menu else 1)
+    if step == "delete_confirm":
         return markup(
             [
                 InlineKeyboardButton(
-                    text="Изменить",
-                    callback_data=f"qsetup:editform:{schedule.schedule_id}",
-                    icon_custom_emoji_id=PremiumEmoji.BRUSH.value,
-                ),
-                InlineKeyboardButton(
-                    text="Удалить",
+                    text="Да, удалить",
                     callback_data=f"qsetup:delete:{schedule.schedule_id}",
                     icon_custom_emoji_id=PremiumEmoji.TRASH.value,
                 ),
                 InlineKeyboardButton(
-                    text="Отмена",
-                    callback_data="qsetup:cancel",
-                    icon_custom_emoji_id=PremiumEmoji.TAG_CROSS.value,
+                    text="Назад",
+                    callback_data="qsetup:review",
+                    icon_custom_emoji_id=PremiumEmoji.ARROW_LEFT.value,
                 ),
             ],
-            1,
+            2,
         )
     if step == "edit":
         return markup(
@@ -177,7 +199,7 @@ def setup_markup(
             ],
             3,
             2,
-            1
+            1,
         )
     if step == "day":
         return markup(
@@ -199,27 +221,6 @@ def setup_markup(
             ],
             3,
             3,
-            2,
-        )
-    if step == "start":
-        return markup(
-            [
-                *[
-                    InlineKeyboardButton(
-                        text=f"{hour:02d}:00", callback_data=f"qsetup:start:{hour}"
-                    )
-                    for hour in range(24)
-                ],
-                InlineKeyboardButton(
-                    text="Назад",
-                    callback_data="qsetup:editmenu"
-                    if edit_menu
-                    else "qsetup:back:period",
-                    icon_custom_emoji_id=PremiumEmoji.ARROW_LEFT.value,
-                ),
-                cancel_setup_button(),
-            ],
-            *([3] * 8),
             2,
         )
     if step == "time":
@@ -280,31 +281,7 @@ def setup_markup(
             2,
             2,
             2,
-            1
-        )
-    if step == "end":
-        first = (schedule.start_minute or 0) // 60 + 1
-        count = 24 - first
-        widths = [3] * (count // 3)
-        if count % 3:
-            widths.append(count % 3)
-        widths.append(2)
-        return markup(
-            [
-                *[
-                    InlineKeyboardButton(
-                        text=f"{hour:02d}:00", callback_data=f"qsetup:end:{hour}"
-                    )
-                    for hour in range(first, 24)
-                ],
-                InlineKeyboardButton(
-                    text="Назад",
-                    callback_data="qsetup:back:start",
-                    icon_custom_emoji_id=PremiumEmoji.ARROW_LEFT.value,
-                ),
-                cancel_setup_button(),
-            ],
-            *widths,
+            1,
         )
     values = [15, 25, 50, config.QUEUE_MAX_SLOTS]
     return markup(
@@ -318,13 +295,26 @@ def setup_markup(
             ],
             InlineKeyboardButton(
                 text="Назад",
-                callback_data="qsetup:back:end",
+                callback_data="qsetup:editmenu" if edit_menu else "qsetup:back:time",
                 icon_custom_emoji_id=PremiumEmoji.ARROW_LEFT.value,
             ),
             cancel_setup_button(),
         ],
         4,
         2,
+    )
+
+
+def saved_markup() -> InlineKeyboardMarkup:
+    return markup(
+        [
+            InlineKeyboardButton(
+                text="Открыть очереди",
+                callback_data="qs:list",
+                icon_custom_emoji_id=PremiumEmoji.CALENDAR.value,
+            )
+        ],
+        1,
     )
 
 
@@ -356,8 +346,9 @@ def queue_markup(queue: Any) -> InlineKeyboardMarkup:
     action_buttons = [
         InlineKeyboardButton(
             text="Освободить",
-            callback_data=f"queue:release:{queue.id}",
+            callback_data=f"queue:release:{queue.id}" if not booking_open else None,
             icon_custom_emoji_id=PremiumEmoji.ERASER.value,
+            disabled=DisabledButton() if not booking_open else None,
         ),
         InlineKeyboardButton(
             text="Обновить",

@@ -4,9 +4,13 @@ from types import SimpleNamespace
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
+from tortoise import Tortoise
+
 from src.bot.keyboards.queue import queue_markup
 from src.bot.utils.queue import is_booking_open, minimum_start_minute
 from src.bot.views.queue import render_queue
+from src.db.models import Queue, QueueSlot
+from src.db.queue import QueueRepository
 
 
 class QueueRenderingTests(unittest.TestCase):
@@ -138,6 +142,53 @@ class QueueRenderingTests(unittest.TestCase):
         self.assertEqual(button.style, "primary")
         self.assertIsNone(button.callback_data)
         self.assertIsNotNone(button.disabled)
+
+
+class UpdateScheduleKeepsBookingsTests(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self) -> None:
+        await Tortoise.init(
+            db_url="sqlite://:memory:", modules={"models": ["src.db.models"]}
+        )
+        await Tortoise.generate_schemas()
+
+    async def asyncTearDown(self) -> None:
+        await Tortoise.close_connections()
+
+    async def test_editing_a_schedule_does_not_wipe_an_active_booking(self) -> None:
+        repository = QueueRepository()
+        weekday = min(datetime.now(ZoneInfo("Asia/Qyzylorda")).weekday(), 5)
+        schedule = await repository.create_schedule(
+            chat_id=1,
+            teacher_id=1,
+            name="Flutter",
+            kind="weekly",
+            once_date=None,
+            weekday=weekday,
+            start_minute=9 * 60,
+            end_minute=10 * 60,
+            capacity=2,
+            timezone="Asia/Qyzylorda",
+        )
+        queue = await Queue.filter(schedule_id=schedule.id).first()
+        slot = await QueueSlot.filter(queue_id=queue.id, position=1).first()
+        slot.user_id = 777
+        slot.user_name = "Student"
+        await slot.save()
+
+        await repository.update_schedule(
+            schedule.id,
+            name="Flutter Pro",
+            kind="weekly",
+            once_date=None,
+            weekday=weekday,
+            start_minute=9 * 60,
+            end_minute=10 * 60,
+            capacity=3,
+        )
+
+        refreshed = await QueueSlot.get(id=slot.id)
+        self.assertEqual(refreshed.user_id, 777)
+        self.assertEqual(await Queue.filter(schedule_id=schedule.id).count(), 1)
 
 
 if __name__ == "__main__":

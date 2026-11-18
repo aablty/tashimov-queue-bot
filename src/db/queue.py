@@ -133,7 +133,20 @@ class QueueRepository:
         schedule = await self.get_schedule(schedule_id)
         if schedule is None:
             raise QueueError
-        await Queue.filter(schedule_id=schedule.id).delete()
+        # Only occurrences with no reservations are safe to drop and
+        # regenerate; one with a booking keeps running under its old terms
+        # until it naturally expires, so nobody loses their slot.
+        occupied_queue_ids = cast(
+            list[int],
+            await QueueSlot.filter(
+                queue__schedule_id=schedule.id, user_id__not_isnull=True
+            ).values_list("queue_id", flat=True),
+        )
+        await (
+            Queue.filter(schedule_id=schedule.id)
+            .exclude(id__in=occupied_queue_ids)
+            .delete()
+        )
         for key, value in values.items():
             setattr(schedule, key, value)
         await schedule.save()
@@ -144,6 +157,11 @@ class QueueRepository:
         schedule = await QueueSchedule.get_or_none(id=schedule_id)
         if schedule is not None:
             await schedule.delete()
+
+    async def count_active_bookings(self, schedule_id: int) -> int:
+        return await QueueSlot.filter(
+            queue__schedule_id=schedule_id, user_id__not_isnull=True
+        ).count()
 
     async def sync_all(self, chat_id: int | None = None) -> None:
         await self.cleanup_expired()
