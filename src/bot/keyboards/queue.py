@@ -180,6 +180,7 @@ def setup_markup(
                 ),
                 InlineKeyboardButton(
                     text=(schedule.once_date or now).strftime("%d.%m.%Y"),
+                    callback_data="qsetup:noop",
                     disabled=DisabledButton(),
                 ),
                 InlineKeyboardButton(text="›", callback_data="qsetup:date:next"),
@@ -247,10 +248,12 @@ def setup_markup(
                 ),
                 InlineKeyboardButton(
                     text=f"{start // 60:02d}:{start % 60:02d}",
+                    callback_data="qsetup:noop",
                     disabled=DisabledButton(),
                 ),
                 InlineKeyboardButton(
                     text=f"{end // 60:02d}:{end % 60:02d}",
+                    callback_data="qsetup:noop",
                     disabled=DisabledButton(),
                 ),
                 InlineKeyboardButton(
@@ -330,11 +333,7 @@ def queue_markup(queue: Any) -> InlineKeyboardMarkup:
         InlineKeyboardButton(
             text=str(slot.position),
             style="success" if slot.user_id is None and booking_open else "primary",
-            callback_data=(
-                f"queue:book:{queue.id}:{slot.position}"
-                if slot.user_id is None and booking_open
-                else None
-            ),
+            callback_data=f"queue:book:{queue.id}:{slot.position}",
             disabled=(
                 DisabledButton()
                 if slot.user_id is not None or not booking_open
@@ -346,7 +345,7 @@ def queue_markup(queue: Any) -> InlineKeyboardMarkup:
     action_buttons = [
         InlineKeyboardButton(
             text="Освободить",
-            callback_data=f"queue:release:{queue.id}" if not booking_open else None,
+            callback_data=f"queue:release:{queue.id}",
             icon_custom_emoji_id=PremiumEmoji.ERASER.value,
             disabled=DisabledButton() if not booking_open else None,
         ),

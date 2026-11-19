@@ -188,6 +188,9 @@ async def setup_callback(callback: CallbackQuery) -> None:
     action = parts[1]
     schedule = payload.schedule
 
+    if action == "noop":
+        await safe_callback_answer(callback)
+        return
     if action in {"main", "cancel"}:
         schedules = await repository.list_schedules(draft.chat_id)
         payload = QueueDraftPayload(

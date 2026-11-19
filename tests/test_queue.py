@@ -140,7 +140,9 @@ class QueueRenderingTests(unittest.TestCase):
         button = queue_markup(queue).inline_keyboard[0][0]
 
         self.assertEqual(button.style, "primary")
-        self.assertIsNone(button.callback_data)
+        # Telegram requires an action field even on a disabled button, so
+        # callback_data must stay set — the client won't let it be tapped.
+        self.assertIsNotNone(button.callback_data)
         self.assertIsNotNone(button.disabled)
 
 
